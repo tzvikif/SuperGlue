@@ -586,9 +586,9 @@ def make_matching_plot_one_to_many(image0, image1, kpts0,kpts1 ,scores,
     color = (np.array(color[:, :3])*255).astype(int)[:, ::-1]
     kpts0, kpts1 = np.round(kpts0).astype(int), np.round(kpts1).astype(int)
     #[KEY_POINT,i]
-    (x0, y0) = kpts0[KEY_POINT]
+    (x0, y0) = kpts1[KEY_POINT]
     for i,(_,c) in enumerate(zip(scores[0,:,KEY_POINT],color)):
-        (x1, y1) = kpts1[i]
+        (x1, y1) = kpts0[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
