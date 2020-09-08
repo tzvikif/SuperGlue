@@ -154,11 +154,21 @@ if __name__ == '__main__':
     assert ret, 'Error when reading the first frame (try different --input?)'
 
     frame_tensor = frame2tensor(frame, device)
-    last_data = matching.superpoint({'image': frame_tensor})
-    last_data = {k+'0': last_data[k] for k in keys}
-    last_data['image0'] = frame_tensor
-    last_frame = frame
-    last_image_id = 0
+    data = matching.superpoint({'image': frame_tensor})
+    data0 = {k+'0': data[k] for k in keys}
+    data0['image0'] = frame_tensor
+    image0 = frame
+    image_id = 0
+
+    frame, ret = vs.next_frame()
+    assert ret, 'Error when reading the first frame (try different --input?)'
+    stem0, stem1 = image_id, vs.i - 1
+    frame_tensor = frame2tensor(frame, device)
+    data = matching.superpoint({'image': frame_tensor})
+    data1 = {k+'1': data[k] for k in keys}
+    data1['image1'] = frame_tensor
+    image1 = frame
+    last_image_id = 1
 
     if opt.output_dir is not None:
         print('==> Will write outputs to {}'.format(opt.output_dir))
@@ -183,45 +193,62 @@ if __name__ == '__main__':
 
     while True:
         frame, ret = vs.next_frame()
+        stem2 = vs.i - 1
         if not ret:
             print('Finished demo_superglue.py')
             break
-        timer.update('data')
-        stem0, stem1 = last_image_id, vs.i - 1
-
+        assert ret, 'Error when reading the first frame (try different --input?)'
+        #super point for image 2
         frame_tensor = frame2tensor(frame, device)
-        pred = matching({**last_data, 'image1': frame_tensor})
-        kpts0 = last_data['keypoints0'][0].cpu().numpy()
-        kpts1 = pred['keypoints1'][0].cpu().numpy()
-        matches = pred['matches0'][0].cpu().numpy()
-        confidence = pred['matching_scores0'][0].cpu().numpy()
+        data = matching.superpoint({'image': frame_tensor})
+        data2 = {k+'0': data[k] for k in keys}
+        data2['image0'] = frame_tensor
+        image2 = frame
+
+        timer.update('data')
+        #01
+        pred01 = matching({**data0, **data1})
+
+        kpts01_0 = data0['keypoints0'][0].cpu().numpy()
+        kpts01_1 = data1['keypoints1'][0].cpu().numpy()
+        matches01_0 = pred01['matches0'][0].cpu().numpy()
+        confidence01_0 = pred01['matching_scores0'][0].cpu().numpy()
+        full_scores01 = pred01['full_scores']
+        #12
+        pred12 = matching({**data1, **data2})
+        kpts12_1 = data1['keypoints1'][0].cpu().numpy()
+        kpts12_2 = data2['keypoints0'][0].cpu().numpy()
+        matches12_2 = pred12['matches0'][0].cpu().numpy()
+        confidence12_2 = pred12['matching_scores0'][0].cpu().numpy()
+        full_scores12 = pred12['full_scores']
+        #02
+        data2.pop('image0',None)
+        data = matching.superpoint({'image': frame_tensor})
+        data2 = {k+'1': data[k] for k in keys}
+        data2['image1'] = frame_tensor
+        pred02 = matching({**data0, **data2})
+        kpts02_0 = data0['keypoints0'][0].cpu().numpy()
+        kpts02_2 = data2['keypoints1'][0].cpu().numpy()
+        matches02_0 = pred02['matches0'][0].cpu().numpy()
+        confidence02_0 = pred02['matching_scores0'][0].cpu().numpy()
+        full_scores02 = pred02['full_scores']
+
         timer.update('forward')
 
-        valid = matches > -1
-        mkpts0 = kpts0[valid]
-        mkpts1 = kpts1[matches[valid]]
-        full_scores = pred['full_scores']
-        color = cm.jet(confidence[valid])
-        text = [
-            'SuperGlue',
-            'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
-            'Matches: {}'.format(len(mkpts0))
-        ]
-        k_thresh = matching.superpoint.config['keypoint_threshold']
-        m_thresh = matching.superglue.config['match_threshold']
-        small_text = [
-            'Keypoint Threshold: {:.4f}'.format(k_thresh),
-            'Match Threshold: {:.2f}'.format(m_thresh),
-            'Image Pair: {:06}:{:06}'.format(stem0, stem1),
-        ]
-        '''
-        out = make_matching_plot_fast(
-            last_frame, frame, kpts0, kpts1, mkpts0, mkpts1, color, text,
-            path=None, show_keypoints=opt.show_keypoints, small_text=small_text)
-        '''
-        out = make_matching_plot_one_to_many(
-            last_frame, frame,kpts0,kpts1,full_scores,text,
-            path=None, show_keypoints=opt.show_keypoints, small_text=small_text)
+        #valid = matches > -1
+        #mkpts0 = kpts0[valid]
+        #mkpts1 = kpts1[matches[valid]]
+        
+        #color = cm.jet(confidence01_0[valid])
+        
+        matching01 = {'kpts0':kpts01_0,'kpts1':kpts01_1,
+        'full_scores':full_scores01}
+        matching02 = {'kpts0':kpts02_0,'kpts2':kpts02_2,
+        'full_scores':full_scores02}
+        matching12 = {'kpts1':kpts12_1,'kpts2':kpts12_2,
+        'full_scores':full_scores12}
+        out = make_matching_plot_one_to_many(image0,image1,image2,
+        matching01,matching02,matching12,path=None)
         if not opt.no_display:
             cv2.imshow('SuperGlue matches', out)
             key = chr(cv2.waitKey(1) & 0xFF)
@@ -256,7 +283,7 @@ if __name__ == '__main__':
 
         if opt.output_dir is not None:
             #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
-            stem = 'matches_{:06}_{:06}'.format(stem0, stem1)
+            stem = 'matches_{:02}_{:02}_{:02}'.format(stem0, stem1,stem2)
             out_file = str(Path(opt.output_dir, stem + '.png'))
             print('\nWriting image to {}'.format(out_file))
             cv2.imwrite(out_file, out)

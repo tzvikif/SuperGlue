@@ -543,7 +543,6 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0,
 
     if path is not None:
         cv2.imwrite(str(path), out)
-
     if opencv_display:
         cv2.imshow(opencv_title, out)
         cv2.waitKey(1)
@@ -554,47 +553,71 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0,
 def error_colormap(x):
     return np.clip(
         np.stack([2-x*2, x*2, np.zeros_like(x), np.ones_like(x)], -1), 0, 1)
-def make_matching_plot_one_to_many(image0, image1, kpts0,kpts1 ,scores,
-                             text, path=None,
-                            show_keypoints=False, margin=10,
-                            opencv_display=False, opencv_title='',
-                            small_text=[]):
-    KEY_POINT = 10
+def make_matching_plot_one_to_many(image0,
+                            image1,
+                            image2,
+                            matching01,
+                            matching02,
+                            matching12,
+                            path=None):
+    KEY_POINT = 50
+    margin = 20
+    H2, W2 = 0,0
     H0, W0 = image0.shape
     H1, W1 = image1.shape
-    H, W = max(H0, H1), W0 + W1 + margin
-
+    H2, W2 = image2.shape
+    H, W = max(H0,H1)+H2, W0 + W1 + margin
     out = 255*np.ones((H, W), np.uint8)
     out[:H0, :W0] = image0
     out[:H1, W0+margin:] = image1
+    margin_w = int((W-W2)/2)
+    out[max(H1,H2):,margin_w:margin_w+W2] = image2
     out = np.stack([out]*3, -1)
+    scores01 = matching01['full_scores']
+    scores02 = matching02['full_scores']
+    scores12 = matching12['full_scores']
+    kpts01_0 = matching01['kpts0']
+    kpts01_1 = matching01['kpts1']
+    kpts02_0 = matching02['kpts0']
+    kpts02_2 = matching02['kpts2']
+    kpts12_1 = matching12['kpts1']
+    kpts12_2 = matching12['kpts2']
 
-    if show_keypoints:
-        kpts0, kpts1 = np.round(kpts0).astype(int), np.round(kpts1).astype(int)
-        white = (255, 255, 255)
-        black = (0, 0, 0)
-        for x, y in kpts0:
-            cv2.circle(out, (x, y), 2, black, -1, lineType=cv2.LINE_AA)
-            cv2.circle(out, (x, y), 1, white, -1, lineType=cv2.LINE_AA)
-        for x, y in kpts1:
-            cv2.circle(out, (x + margin + W0, y), 2, black, -1,
-                       lineType=cv2.LINE_AA)
-            cv2.circle(out, (x + margin + W0, y), 1, white, -1,
-                       lineType=cv2.LINE_AA)
-    color = cm.jet(scores[0,:,KEY_POINT])
-    #color = (c[3]*scores[0,:,KEY_POINT] for i,c in enumerate(color))
-    color = (np.array(color[:, :3])*255).astype(int)[:, ::-1]
-    kpts0, kpts1 = np.round(kpts0).astype(int), np.round(kpts1).astype(int)
-    #[KEY_POINT,i]
-    (x0, y0) = kpts1[KEY_POINT]
-    for i,(_,c) in enumerate(zip(scores[0,:,KEY_POINT],color)):
-        (x1, y1) = kpts0[i]
+
+    color01 = cm.Reds(scores01[0,:,KEY_POINT])
+    color02 = cm.Reds(scores02[0,:,KEY_POINT])
+    color12 = cm.Reds(scores12[0,:,KEY_POINT])
+    
+    color01 = (np.array(color01)*255).astype(int)[:, ::-1]
+    color02 = (np.array(color02)*255).astype(int)[:, ::-1]
+    color12 = (np.array(color12)*255).astype(int)[:, ::-1]
+    kpts01_0, kpts01_1 = np.round(kpts01_0).astype(int), np.round(kpts01_1).astype(int)
+    kpts02_0, kpts02_2 = np.round(kpts02_0).astype(int), np.round(kpts02_2).astype(int)
+    kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
+    #01
+    (x0, y0) = kpts01_0[KEY_POINT]
+    for i,(_,c) in enumerate(zip(scores01[0,:,KEY_POINT],color01)):
+        (x1, y1) = kpts01_1[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
+    #02
+    (x0, y0) = kpts02_0[KEY_POINT]
+    for i,(_,c) in enumerate(zip(scores02[0,:,KEY_POINT],color02)):
+        (x1, y1) = kpts02_2[i]
+        c = c.tolist()
+        cv2.line(out, (x0, y0), (x1+margin_w, y1+max(H0,H1)),
+                 color=c, thickness=1, lineType=cv2.LINE_AA)
+    #12
+    (x0, y0) = kpts12_1[KEY_POINT]
+    for i,(_,c) in enumerate(zip(scores12[0,:,KEY_POINT],color12)):
+        (x1, y1) = kpts12_2[i]
+        c = c.tolist()
+        cv2.line(out, (x0 + margin + W0, y0), (x1+margin_w, y1+max(H0,H1)),
+                 color=c, thickness=1, lineType=cv2.LINE_AA)
     if path is not None:
         cv2.imwrite(str(path), out)
-
+    opencv_display = False
     if opencv_display:
         cv2.imshow(opencv_title, out)
         cv2.waitKey(1)
