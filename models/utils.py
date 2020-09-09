@@ -561,6 +561,7 @@ def make_matching_plot_one_to_many(image0,
                             matching12,
                             path=None):
     KEY_POINT = 50
+    LINES = 20
     margin = 20
     H2, W2 = 0,0
     H0, W0 = image0.shape
@@ -596,21 +597,45 @@ def make_matching_plot_one_to_many(image0,
     kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
     #01
     (x0, y0) = kpts01_0[KEY_POINT]
-    for i,(_,c) in enumerate(zip(scores01[0,:,KEY_POINT],color01)):
+    scores01 = scores01[0,:,KEY_POINT]
+    index_sorted_scores01 = scores01.argsort()
+    sorted_scores01 = scores01[index_sorted_scores01]
+    t = sorted_scores01.numpy()
+    t = t[::-1][:LINES].copy()
+    sorted_scores01 = torch.from_numpy(t)
+    sorted_color01 = color01[index_sorted_scores01]
+    sorted_color01 = t[::-1][:LINES].copy()
+    for i,(_,c) in enumerate(zip(sorted_scores01,sorted_color01)):
         (x1, y1) = kpts01_1[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
     #02
+    scores02 = scores02[0,:,KEY_POINT]
+    index_sorted_scores02 = scores02.argsort()
+    sorted_scores02 = scores02[index_sorted_scores02]
+    t = sorted_scores02.numpy()
+    t = t[::-1][:LINES].copy()
+    sorted_scores02 = torch.from_numpy(t)
+    sorted_color02 = color02[index_sorted_scores01]
+    sorted_color02 = t[::-1][:LINES].copy()
     (x0, y0) = kpts02_0[KEY_POINT]
-    for i,(_,c) in enumerate(zip(scores02[0,:,KEY_POINT],color02)):
+    for i,(_,c) in enumerate(zip(sorted_scores02,sorted_color02)):
         (x1, y1) = kpts02_2[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1+margin_w, y1+max(H0,H1)),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
     #12
+    scores12 = scores12[0,:,KEY_POINT]
+    index_sorted_scores12 = scores12.argsort()
+    sorted_scores12 = scores12[index_sorted_scores12]
+    t = sorted_scores12.numpy()
+    t = t[::-1][:LINES].copy()
+    sorted_scores12 = torch.from_numpy(t)
+    sorted_color12 = color12[index_sorted_scores01]
+    sorted_color12 = t[::-1][:LINES].copy()
     (x0, y0) = kpts12_1[KEY_POINT]
-    for i,(_,c) in enumerate(zip(scores12[0,:,KEY_POINT],color12)):
+    for i,(_,c) in enumerate(zip(sorted_scores12,sorted_color12)):
         (x1, y1) = kpts12_2[i]
         c = c.tolist()
         cv2.line(out, (x0 + margin + W0, y0), (x1+margin_w, y1+max(H0,H1)),
