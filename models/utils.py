@@ -557,12 +557,12 @@ def make_matching_plot_one_to_many(image0,
                             image1,
                             image2,
                             matching01,
-                            matching02,
                             matching12,
+                            matching20,
                             margin=10,
                             path=None):
-    KEY_POINT = 100
-    LINES = 20
+    KEY_POINT = 115
+    LINES = 5
     H2, W2 = 0,0
     H0, W0 = image0.shape
     H1, W1 = image1.shape
@@ -575,25 +575,25 @@ def make_matching_plot_one_to_many(image0,
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
     scores01 = matching01['full_scores']
-    scores02 = matching02['full_scores']
+    scores20 = matching20['full_scores']
     scores12 = matching12['full_scores']
-    kpts01_0 = matching01['kpts0']
-    kpts01_1 = matching01['kpts1']
-    kpts02_0 = matching02['kpts0']
-    kpts02_2 = matching02['kpts2']
-    kpts12_1 = matching12['kpts1']
-    kpts12_2 = matching12['kpts2']
+    kpts01_0 = matching01['kpts_s']
+    kpts01_1 = matching01['kpts_d']
+    kpts20_0 = matching20['kpts_d']
+    kpts20_2 = matching20['kpts_s']
+    kpts12_1 = matching12['kpts_s']
+    kpts12_2 = matching12['kpts_d']
 
     COLOR_FACTOR = 2**(-4)
     #color01 = cm.jet(scores01[0,KEY_POINT,:]**COLOR_FACTOR)
-    #color02 = cm.Reds(scores02[0,KEY_POINT,:]**COLOR_FACTOR)
+    #color20 = cm.Reds(scores20[0,KEY_POINT,:]**COLOR_FACTOR)
     #color12 = cm.Reds(scores12[0,KEY_POINT,:]**COLOR_FACTOR)
     
     #color01 = (np.array(color01)*255).astype(int)[:, ::-1]
-    #color02 = (np.array(color02)*255).astype(int)[:, ::-1]
+    #color20 = (np.array(color20)*255).astype(int)[:, ::-1]
     #color12 = (np.array(color12)*255).astype(int)[:, ::-1]
     kpts01_0, kpts01_1 = np.round(kpts01_0).astype(int), np.round(kpts01_1).astype(int)
-    kpts02_0, kpts02_2 = np.round(kpts02_0).astype(int), np.round(kpts02_2).astype(int)
+    kpts20_0, kpts20_2 = np.round(kpts20_0).astype(int), np.round(kpts20_2).astype(int)
     kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
     #01
     (x0, y0) = kpts01_0[KEY_POINT]
@@ -608,7 +608,7 @@ def make_matching_plot_one_to_many(image0,
     sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
     sorted_kpts01_1 = sorted_kpts01_1[::-1].copy()
     for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
-        break
+        #break
         (x1, y1) = sorted_kpts01_1[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
@@ -622,28 +622,32 @@ def make_matching_plot_one_to_many(image0,
     sorted_scores12 = torch.from_numpy(t)
     color12 = cm.jet(sorted_scores12**COLOR_FACTOR)
     color12 = (np.array(color12)*255).astype(int)
-    
+    sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
+    sorted_kpts12_2 = sorted_kpts12_2[::-1].copy()
     (x0, y0) = kpts12_1[KEY_POINT]
     for i,(_,c) in enumerate(zip(sorted_scores12,color12)):
-        (x1, y1) = kpts12_2[i]
+        #break
+        (x1, y1) = sorted_kpts12_2[i]
         c = c.tolist()
         cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
-    return out
     #20
-    scores02 = scores02[0,KEY_POINT,:]
-    index_sorted_scores02 = scores02.argsort()
-    sorted_scores02 = scores02[index_sorted_scores02]
-    t = sorted_scores02.numpy()
+    scores20 = scores20[0,KEY_POINT,:]
+    index_sorted_scores20 = scores20.argsort()
+    sorted_scores20 = scores20[index_sorted_scores20]
+    t = sorted_scores20.numpy()
     t = t[::-1][:LINES].copy()
-    sorted_scores02 = torch.from_numpy(t)
-    color02 = cm.jet(sorted_scores02**COLOR_FACTOR)
-    color02 = (np.array(color02)*255).astype(int)
-    (x0, y0) = kpts02_0[KEY_POINT]
-    for i,(_,c) in enumerate(zip(sorted_scores02,color02)):
-        (x1, y1) = kpts02_2[i]
+    sorted_scores20 = torch.from_numpy(t)
+    color20 = cm.jet(sorted_scores20**COLOR_FACTOR)
+    color20 = (np.array(color20)*255).astype(int)
+    sorted_kpts20_0 = kpts20_0[index_sorted_scores20]
+    sorted_kpts20_0 = sorted_kpts20_0[::-1].copy()
+    (x0, y0) = kpts20_2[KEY_POINT]
+    for i,(_,c) in enumerate(zip(sorted_scores20,color20)):
+        #break
+        (x1, y1) = sorted_kpts20_0[i]
         c = c.tolist()
-        cv2.line(out, (x0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
+        cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
     if path is not None:
         cv2.imwrite(str(path), out)

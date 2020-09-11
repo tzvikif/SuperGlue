@@ -215,23 +215,24 @@ if __name__ == '__main__':
         confidence01_0 = pred01['matching_scores0'][0].cpu().numpy()
         full_scores01 = pred01['full_scores']
         #12
-        pred12 = matching({**data1, **data2})
+        pred21 = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
         kpts12_1 = data1['keypoints1'][0].cpu().numpy()
         kpts12_2 = data2['keypoints0'][0].cpu().numpy()
-        matches12_2 = pred12['matches0'][0].cpu().numpy()
-        confidence12_2 = pred12['matching_scores0'][0].cpu().numpy()
-        full_scores12 = pred12['full_scores']
+        matches12_2 = pred21['matches1'][0].cpu().numpy()
+        confidence12_2 = pred21['matching_scores1'][0].cpu().numpy()
+        full_scores12 = torch.transpose(pred21['full_scores'],2,1)
         #02
-        data2.pop('image0',None)
+        data2 = None
         data = matching.superpoint({'image': frame_tensor})
         data2 = {k+'1': data[k] for k in keys}
         data2['image1'] = frame_tensor
         pred02 = matching({**data0, **data2})
-        kpts02_0 = data0['keypoints0'][0].cpu().numpy()
-        kpts02_2 = data2['keypoints1'][0].cpu().numpy()
-        matches02_0 = pred02['matches0'][0].cpu().numpy()
-        confidence02_0 = pred02['matching_scores0'][0].cpu().numpy()
-        full_scores02 = pred02['full_scores']
+        kpts20_0 = data0['keypoints0'][0].cpu().numpy()
+        kpts20_2 = data2['keypoints1'][0].cpu().numpy()
+        matches20_0 = pred02['matches0'][0].cpu().numpy()
+        confidence20_0 = pred02['matching_scores0'][0].cpu().numpy()
+        full_scores20 = torch.transpose(pred02['full_scores'],2,1) 
+        #full_scores02 = pred02['full_scores'] 
 
         timer.update('forward')
 
@@ -241,14 +242,14 @@ if __name__ == '__main__':
         
         #color = cm.jet(confidence01_0[valid])
         
-        matching01 = {'kpts0':kpts01_0,'kpts1':kpts01_1,
+        matching01 = {'kpts_s':kpts01_0,'kpts_d':kpts01_1,
         'full_scores':full_scores01}
-        matching02 = {'kpts0':kpts02_0,'kpts2':kpts02_2,
-        'full_scores':full_scores02}
-        matching12 = {'kpts1':kpts12_1,'kpts2':kpts12_2,
+        matching20 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
+        'full_scores':full_scores20}
+        matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
         'full_scores':full_scores12}
-        out = make_matching_plot_one_to_many(image0,image1,image2,
-        matching01,matching02,matching12,path=None)
+        out = make_matching_plot_one_to_many(image0,image1,image2
+        ,matching01,matching12,matching20,path=None)
         if not opt.no_display:
             cv2.imshow('SuperGlue matches', out)
             key = chr(cv2.waitKey(1) & 0xFF)
