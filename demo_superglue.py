@@ -211,15 +211,15 @@ if __name__ == '__main__':
 
         kpts01_0 = data0['keypoints0'][0].cpu().numpy()
         kpts01_1 = data1['keypoints1'][0].cpu().numpy()
-        matches01_0 = pred01['matches0'][0].cpu().numpy()
-        confidence01_0 = pred01['matching_scores0'][0].cpu().numpy()
+        matches01_to_0 = pred01['matches0'][0].cpu().numpy()
+        confidence01_to_0 = pred01['matching_scores0'][0].cpu().numpy()
         full_scores01 = pred01['full_scores']
         #12
         pred21 = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
         kpts12_1 = data1['keypoints1'][0].cpu().numpy()
         kpts12_2 = data2['keypoints0'][0].cpu().numpy()
-        matches12_2 = pred21['matches1'][0].cpu().numpy()
-        confidence12_2 = pred21['matching_scores1'][0].cpu().numpy()
+        matches12_to_2 = pred21['matches0'][0].cpu().numpy()
+        confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
         full_scores12 = torch.transpose(pred21['full_scores'],2,1)
         #02
         data2 = None
@@ -229,8 +229,8 @@ if __name__ == '__main__':
         pred02 = matching({**data0, **data2})
         kpts20_0 = data0['keypoints0'][0].cpu().numpy()
         kpts20_2 = data2['keypoints1'][0].cpu().numpy()
-        matches20_0 = pred02['matches0'][0].cpu().numpy()
-        confidence20_0 = pred02['matching_scores0'][0].cpu().numpy()
+        matches20_to_0 = pred02['matches0'][0].cpu().numpy()
+        confidence20_to_0 = pred02['matching_scores0'][0].cpu().numpy()
         full_scores20 = torch.transpose(pred02['full_scores'],2,1) 
         #full_scores02 = pred02['full_scores'] 
 
