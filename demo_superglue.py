@@ -221,7 +221,7 @@ if __name__ == '__main__':
         matches12_to_2 = pred21['matches0'][0].cpu().numpy()
         confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
         full_scores12 = torch.transpose(pred21['full_scores'],2,1)
-        #02
+        #20
         data2 = None
         data = matching.superpoint({'image': frame_tensor})
         data2 = {k+'1': data[k] for k in keys}
@@ -250,6 +250,10 @@ if __name__ == '__main__':
         'full_scores':full_scores12}
         out = make_matching_plot_one_to_many(image0,image1,image2
         ,matching01,matching12,matching20,path=None)
+        data1 = data2.copy()
+        data0 = {k[:-1]+'0': data1[k] for k in data1.keys()}
+        image0 = image1.copy()
+        image1 = image2.copy()
         if not opt.no_display:
             cv2.imshow('SuperGlue matches', out)
             key = chr(cv2.waitKey(1) & 0xFF)
