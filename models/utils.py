@@ -606,6 +606,8 @@ def make_matching_plot_one_to_many(image0,
     color01 = cm.jet(sorted_scores01**COLOR_FACTOR)
     color01 = (np.array(color01)*255).astype(int)
     sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
+    red = (0, 30, 250)
+    cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
     for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
         if LINES == 1:
             (x1,y1) = sorted_kpts01_1
