@@ -562,7 +562,7 @@ def make_matching_plot_one_to_many(image0,
                             margin=10,
                             path=None):
     START_KEY_POINT = 115
-    LINES = 5
+    LINES = 10
     H2, W2 = 0,0
     H0, W0 = image0.shape
     H1, W1 = image1.shape
@@ -607,12 +607,17 @@ def make_matching_plot_one_to_many(image0,
     color01 = (np.array(color01)*255).astype(int)
     sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
     for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
-        #break
-        (x1, y1) = sorted_kpts01_1[i]
+        if LINES == 1:
+            (x1,y1) = sorted_kpts01_1
+        else:
+            (x1, y1) = sorted_kpts01_1[i]
         c = c.tolist()
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
+        print(f'from image0 ({x0},{y0}) to image1 ({x1},{y1})')
     #12
+    print('-'*20)
+    index_kpts_dest = list()
     for idx in index_sorted_scores01[:LINES]:
         kpts1 = kpts01_1[idx]
         scores12_kpt = scores12[0][idx,:]
@@ -624,15 +629,21 @@ def make_matching_plot_one_to_many(image0,
         color12 = cm.jet(scores12_sorted**COLOR_FACTOR)
         color12 = (np.array(color12)*255).astype(int)
         sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
+        index_kpts_dest.append(index_sorted_scores12[0])
         (x0, y0) = kpts1
         for i,(_,c) in enumerate(zip(scores12_sorted,color12)):
-            #break
-            (x1, y1) = sorted_kpts12_2[i]
+            if LINES == 1:
+                (x1, y1) = sorted_kpts12_2
+            else:    
+                (x1, y1) = sorted_kpts12_2[i]
             c = c.tolist()
             cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
                     color=c, thickness=1, lineType=cv2.LINE_AA)
+            print(f'from image1 ({x0},{y0}) to image2 ({x1},{y1})')
+            break
     #20
-    for idx in index_sorted_scores12[:LINES]:
+    print('-'*20)
+    for idx in index_kpts_dest:
         kpts2 = kpts12_2[idx]
         scores20_kpt = scores20[0][idx,:]
         index_scores20_sorted = scores20_kpt.argsort()
@@ -645,10 +656,15 @@ def make_matching_plot_one_to_many(image0,
         sorted_kpts20_0 = kpts20_0[index_scores20_sorted]
         (x0, y0) = kpts2
         for i,(_,c) in enumerate(zip(scores20_sorted,color20)):
-            (x1, y1) = sorted_kpts20_0[i]
+            if LINES == 1:
+                (x1, y1) = sorted_kpts20_0
+            else:
+                (x1, y1) = sorted_kpts20_0[i]
             c = c.tolist()
             cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
                     color=c, thickness=1, lineType=cv2.LINE_AA)
+            print(f'from image2 ({x0},{y0}) to image0 ({x1},{y1})')
+            break
     if path is not None:
         cv2.imwrite(str(path), out)
     opencv_display = False
