@@ -561,7 +561,7 @@ def make_matching_plot_one_to_many(image0,
                             matching20,
                             margin=10,
                             path=None):
-    KEY_POINT = 115
+    START_KEY_POINT = 115
     LINES = 5
     H2, W2 = 0,0
     H0, W0 = image0.shape
@@ -596,17 +596,16 @@ def make_matching_plot_one_to_many(image0,
     kpts20_0, kpts20_2 = np.round(kpts20_0).astype(int), np.round(kpts20_2).astype(int)
     kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
     #01
-    (x0, y0) = kpts01_0[KEY_POINT]
-    scores01 = scores01[0,KEY_POINT,:]
+    (x0, y0) = kpts01_0[START_KEY_POINT]
+    scores01 = scores01[0,START_KEY_POINT,:]
     index_sorted_scores01 = scores01.argsort()
+    t = index_sorted_scores01.numpy()
+    t = t[::-1].copy()
+    index_sorted_scores01 = torch.from_numpy(t)[:LINES]
     sorted_scores01 = scores01[index_sorted_scores01]
-    t = sorted_scores01.numpy()
-    t = t[::-1][:LINES].copy()
-    sorted_scores01 = torch.from_numpy(t)
     color01 = cm.jet(sorted_scores01**COLOR_FACTOR)
     color01 = (np.array(color01)*255).astype(int)
     sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
-    sorted_kpts01_1 = sorted_kpts01_1[::-1].copy()
     for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
         #break
         (x1, y1) = sorted_kpts01_1[i]
@@ -614,41 +613,42 @@ def make_matching_plot_one_to_many(image0,
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
     #12
-    scores12 = scores12[0,KEY_POINT,:]
-    index_sorted_scores12 = scores12.argsort()
-    sorted_scores12 = scores12[index_sorted_scores12]
-    t = sorted_scores12.numpy()
-    t = t[::-1][:LINES].copy()
-    sorted_scores12 = torch.from_numpy(t)
-    color12 = cm.jet(sorted_scores12**COLOR_FACTOR)
-    color12 = (np.array(color12)*255).astype(int)
-    sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
-    sorted_kpts12_2 = sorted_kpts12_2[::-1].copy()
-    (x0, y0) = kpts12_1[KEY_POINT]
-    for i,(_,c) in enumerate(zip(sorted_scores12,color12)):
-        #break
-        (x1, y1) = sorted_kpts12_2[i]
-        c = c.tolist()
-        cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
-                 color=c, thickness=1, lineType=cv2.LINE_AA)
+    for idx in index_sorted_scores01[:LINES]:
+        kpts1 = kpts01_1[idx]
+        scores12_kpt = scores12[0][idx,:]
+        index_sorted_scores12 = scores12_kpt.argsort()
+        t = index_sorted_scores12.numpy()
+        t = t[::-1][:LINES].copy()
+        index_sorted_scores12 = torch.from_numpy(t)
+        scores12_sorted = scores12_kpt[index_sorted_scores12]
+        color12 = cm.jet(scores12_sorted**COLOR_FACTOR)
+        color12 = (np.array(color12)*255).astype(int)
+        sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
+        (x0, y0) = kpts1
+        for i,(_,c) in enumerate(zip(scores12_sorted,color12)):
+            #break
+            (x1, y1) = sorted_kpts12_2[i]
+            c = c.tolist()
+            cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
+                    color=c, thickness=1, lineType=cv2.LINE_AA)
     #20
-    scores20 = scores20[0,KEY_POINT,:]
-    index_sorted_scores20 = scores20.argsort()
-    sorted_scores20 = scores20[index_sorted_scores20]
-    t = sorted_scores20.numpy()
-    t = t[::-1][:LINES].copy()
-    sorted_scores20 = torch.from_numpy(t)
-    color20 = cm.jet(sorted_scores20**COLOR_FACTOR)
-    color20 = (np.array(color20)*255).astype(int)
-    sorted_kpts20_0 = kpts20_0[index_sorted_scores20]
-    sorted_kpts20_0 = sorted_kpts20_0[::-1].copy()
-    (x0, y0) = kpts20_2[KEY_POINT]
-    for i,(_,c) in enumerate(zip(sorted_scores20,color20)):
-        #break
-        (x1, y1) = sorted_kpts20_0[i]
-        c = c.tolist()
-        cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
-                 color=c, thickness=1, lineType=cv2.LINE_AA)
+    for idx in index_sorted_scores12[:LINES]:
+        kpts2 = kpts12_2[idx]
+        scores20_kpt = scores20[0][idx,:]
+        index_scores20_sorted = scores20_kpt.argsort()
+        t = index_scores20_sorted.numpy()
+        t = t[::-1][:LINES].copy()
+        index_scores20_sorted = torch.from_numpy(t)
+        scores20_sorted = scores20_kpt[index_scores20_sorted]
+        color20 = cm.jet(scores20_sorted**COLOR_FACTOR)
+        color20 = (np.array(color20)*255).astype(int)
+        sorted_kpts20_0 = kpts20_0[index_scores20_sorted]
+        (x0, y0) = kpts2
+        for i,(_,c) in enumerate(zip(scores20_sorted,color20)):
+            (x1, y1) = sorted_kpts20_0[i]
+            c = c.tolist()
+            cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
+                    color=c, thickness=1, lineType=cv2.LINE_AA)
     if path is not None:
         cv2.imwrite(str(path), out)
     opencv_display = False
