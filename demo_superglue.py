@@ -53,7 +53,9 @@ import torch
 from models.matching import Matching
 from models.utils import (AverageTimer, VideoStreamer,
                           make_matching_plot_fast, frame2tensor,
-                          make_matching_plot_one_to_many)
+                          make_matching_plot_one_to_many,
+                          create_triangles,
+                          draw_triangles)
 
 torch.set_grad_enabled(False)
 
@@ -250,6 +252,8 @@ if __name__ == '__main__':
         'full_scores':full_scores12}
         out = make_matching_plot_one_to_many(image0,image1,image2
         ,matching01,matching12,matching20,path=None)
+        tri_out = draw_triangles(image0,image1,image2
+        ,matching01,matching12,matching20)
         data1 = data2.copy()
         data0 = {k[:-1]+'0': data1[k] for k in data1.keys()}
         image0 = image1.copy()
@@ -291,7 +295,7 @@ if __name__ == '__main__':
             stem = 'matches_{:02}_{:02}_{:02}'.format(stem0, stem1,stem2)
             out_file = str(Path(opt.output_dir, stem + '.png'))
             print('\nWriting image to {}'.format(out_file))
-            cv2.imwrite(out_file, out)
+            cv2.imwrite(out_file, tri_out)
 
     cv2.destroyAllWindows()
     vs.cleanup()
