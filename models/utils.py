@@ -52,6 +52,7 @@ import torch
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib
+import random
 matplotlib.use('Agg')
 
 
@@ -568,9 +569,9 @@ def create_triangles(image0,
                     matching12,
                     matching20,
                     margin=10):
-    START_KEY_POINT = 135
     LINES = 3
     H2, W2 = 0,0
+    DEBUG_PRINT = False
     H0, W0 = image0.shape
     H1, W1 = image1.shape
     H2, W2 = image2.shape
@@ -581,9 +582,9 @@ def create_triangles(image0,
     H2_margin_w = int((W-W2)/2)
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
-    scores01 = matching01['full_scores']
-    scores20 = matching20['full_scores']
-    scores12 = matching12['full_scores']
+    scores01_orig = matching01['full_scores']
+    scores20_orig = matching20['full_scores']
+    scores12_orig = matching12['full_scores']
     kpts01_0 = matching01['kpts_s']
     kpts01_1 = matching01['kpts_d']
     kpts20_0 = matching20['kpts_d']
@@ -596,119 +597,129 @@ def create_triangles(image0,
     kpts01_0, kpts01_1 = np.round(kpts01_0).astype(int), np.round(kpts01_1).astype(int)
     kpts20_0, kpts20_2 = np.round(kpts20_0).astype(int), np.round(kpts20_2).astype(int)
     kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
-    triangles_per_kpt01 = list()
-    triangles_per_kpt12 = list()
-    triangles_per_kpt20 = list()
-    #triangles = [[None]*kpts01_0.shape[0] for i in  range(kpts01_1.shape[0])]
-    triangles = np.full((kpts01_0.shape[0],kpts01_1.shape[0]),None)
-    #01
-    (x0, y0) = kpts01_0[START_KEY_POINT]
-    scores01 = scores01[0,START_KEY_POINT,:]
-    index_sorted_scores01 = scores01.argsort()
-    t = index_sorted_scores01.numpy()
-    t = t[::-1].copy()
-    index_sorted_scores01 = torch.from_numpy(t)[:LINES]
-    sorted_scores01 = scores01[index_sorted_scores01]
-    color01 = cm.jet(sorted_scores01**COLOR_FACTOR)
-    color01 = (np.array(color01)*255).astype(int)
-    sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
-    red = (0, 30, 250)
-    cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-
-    for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
-        if LINES == 1:
-            (x1,y1) = sorted_kpts01_1
-        else:
-            (x1, y1) = sorted_kpts01_1[i]
-        c = c.tolist()
-        triangles_per_kpt01.append({'image0_kpt':(x0,y0),'score01':sorted_scores01[i],
-        'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,'image1_kpt_idx':index_sorted_scores01[i]})
-        cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
-                 color=c, thickness=1, lineType=cv2.LINE_AA)
-        print(f'from image0 ({x0},{y0}) to image1 ({x1},{y1})')
-    #12
-    print('-'*20)
-    index_kpts_dest = list()
-    for i,idx in enumerate(index_sorted_scores01[:LINES]):
-        tri = triangles_per_kpt01[i]
-        kpts1 = kpts01_1[idx]
-        scores12_kpt = scores12[0][idx,:]
-        index_sorted_scores12 = scores12_kpt.argsort()
-        t = index_sorted_scores12.numpy()
-        t = t[::-1][:LINES].copy()
-        index_sorted_scores12 = torch.from_numpy(t)
-        scores12_sorted = scores12_kpt[index_sorted_scores12]
-        color12 = cm.jet(scores12_sorted**COLOR_FACTOR)
-        color12 = (np.array(color12)*255).astype(int)
-        sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
-        (x0, y0) = kpts1
-        for i,(_,c) in enumerate(zip(scores12_sorted,color12)):
-            index_kpts_dest.append(index_sorted_scores12[i])
+    triangles = list()
+    cnt = 0
+    for START_KEY_POINT in range(len(kpts01_0)):
+        triangles_per_kpt01 = list()
+        triangles_per_kpt12 = list()
+        triangles_per_kpt20 = list()
+        triangles_kpt = np.full((kpts01_0.shape[0],kpts01_1.shape[0]),None)
+        #01
+        (x0, y0) = kpts01_0[START_KEY_POINT]
+        red = (0, 30, 250)
+        cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
+        scores01 = scores01_orig[0,START_KEY_POINT,:]
+        index_sorted_scores01 = scores01.argsort()
+        t = index_sorted_scores01.numpy()
+        t = t[::-1].copy()
+        index_sorted_scores01 = torch.from_numpy(t)[:LINES]
+        sorted_scores01 = scores01[index_sorted_scores01]
+        color01 = cm.jet(sorted_scores01**COLOR_FACTOR)
+        color01 = (np.array(color01)*255).astype(int)
+        sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
+        red = (0, 30, 250)
+        cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
+        for i,(_,c) in enumerate(zip(sorted_scores01,color01)):
             if LINES == 1:
-                (x1, y1) = sorted_kpts12_2
-            else:    
-                (x1, y1) = sorted_kpts12_2[i]
-            c = c.tolist()
-            triangles_per_kpt12.append({'image0_kpt':tri['image0_kpt'],'score01':tri['score01'],
-            'image1_kpt':tri['image1_kpt'],'score12':scores12_sorted[i],'image2_kpt':(x1, y1),
-            'image0_kpt_idx':tri['image0_kpt_idx'],'image1_kpt_idx':tri['image1_kpt_idx']})
-            cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
-                    color=c, thickness=1, lineType=cv2.LINE_AA)
-            print(f'from image1 ({x0},{y0}) to image2 ({x1},{y1})')
-    #20
-    print('-'*20)
-    for i,idx in enumerate(index_kpts_dest):
-        tri = triangles_per_kpt12[i]
-        kpts2 = kpts12_2[idx]
-        scores20_kpt = scores20[0][idx,:]
-        index_scores20_sorted = scores20_kpt.argsort()
-        t = index_scores20_sorted.numpy()
-        t = t[::-1][:LINES].copy()
-        index_scores20_sorted = torch.from_numpy(t)
-        scores20_sorted = scores20_kpt[index_scores20_sorted]
-        color20 = cm.jet(scores20_sorted**COLOR_FACTOR)
-        color20 = (np.array(color20)*255).astype(int)
-        sorted_kpts20_0 = kpts20_0[index_scores20_sorted]
-        (x0, y0) = kpts2
-        for i,(_,c) in enumerate(zip(scores20_sorted,color20)):
-            if LINES == 1:
-                (x1, y1) = sorted_kpts20_0
+                (x1,y1) = sorted_kpts01_1
             else:
-                (x1, y1) = sorted_kpts20_0[i]
+                (x1, y1) = sorted_kpts01_1[i]
             c = c.tolist()
+            triangles_per_kpt01.append({'image0_kpt':(x0,y0),'score01':sorted_scores01[i],
+            'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,'image1_kpt_idx':index_sorted_scores01[i]})
+            cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
+                    color=c, thickness=1, lineType=cv2.LINE_AA)
+            #print(f'from image0 ({x0},{y0}) to image1 ({x1},{y1})')
+        #12
+        #print('-'*20)
+        index_kpts_dest = list()
+        for i,idx in enumerate(index_sorted_scores01[:LINES]):
+            tri = triangles_per_kpt01[i]
+            kpts1 = kpts01_1[idx]
+            scores12_kpt = scores12_orig[0][idx,:]
+            index_sorted_scores12 = scores12_kpt.argsort()
+            t = index_sorted_scores12.numpy()
+            t = t[::-1][:LINES].copy()
+            index_sorted_scores12 = torch.from_numpy(t)
+            scores12_sorted = scores12_kpt[index_sorted_scores12]
+            color12 = cm.jet(scores12_sorted**COLOR_FACTOR)
+            color12 = (np.array(color12)*255).astype(int)
+            sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
+            (x0, y0) = kpts1
+            for i,(_,c) in enumerate(zip(scores12_sorted,color12)):
+                index_kpts_dest.append(index_sorted_scores12[i])
+                if LINES == 1:
+                    (x1, y1) = sorted_kpts12_2
+                else:    
+                    (x1, y1) = sorted_kpts12_2[i]
+                c = c.tolist()
+                triangles_per_kpt12.append({'image0_kpt':tri['image0_kpt'],'score01':tri['score01'],
+                'image1_kpt':tri['image1_kpt'],'score12':scores12_sorted[i],'image2_kpt':(x1, y1),
+                'image0_kpt_idx':tri['image0_kpt_idx'],'image1_kpt_idx':tri['image1_kpt_idx']})
+                cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
+                        color=c, thickness=1, lineType=cv2.LINE_AA)
+                #print(f'from image1 ({x0},{y0}) to image2 ({x1},{y1})')
+        #20
+        #print('-'*20)
+        (x1,y1) = kpts20_0[START_KEY_POINT]
+        for i,idx in enumerate(index_kpts_dest):
+            tri = triangles_per_kpt12[i]
+            kpts2 = kpts12_2[idx]
+            scores20_kpt = scores20_orig[0][idx,:]
+            index_scores20_sorted = scores20_kpt.argsort()
+            t = index_scores20_sorted.numpy()
+            t = t[::-1][:LINES].copy()
+            index_scores20_sorted = torch.from_numpy(t)
+            scores20_sorted = scores20_kpt[index_scores20_sorted]
+            sorted_kpts20_0 = kpts20_0[index_scores20_sorted]
+            (x0, y0) = kpts2
+            score20 = scores20_kpt[START_KEY_POINT]
             triangles_per_kpt20.append({'image0_kpt':tri['image0_kpt'],'score01':tri['score01'],
             'image1_kpt':tri['image1_kpt'],
             'image0_kpt_idx':tri['image0_kpt_idx'],'image1_kpt_idx':tri['image1_kpt_idx'],
-            'score12':scores12_sorted[i],'image2_kpt':(x1, y1),
-            'score20':scores20_sorted[i],
-            'total_score':tri['score01']*tri['score12']*scores20_sorted[i]})
+            'score12':tri['score12'],'image2_kpt':(x0, y0),
+            'score20':score20,
+            'total_score':tri['score01']*tri['score12']*score20})
+            c = cm.jet(score20**COLOR_FACTOR)
+            c = (np.array(c)*255).astype(int)
+            c = c.tolist()
             cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
                     color=c, thickness=1, lineType=cv2.LINE_AA)
-            #print(f'image0_kpt:{tri["image0_kpt"]} image1_kpt:{tri["image1_kpt"]} image2_kpt:{tri["image2_kpt"]}')
-    for tri in triangles_per_kpt20:
-        cell = triangles[tri['image0_kpt_idx']][tri['image1_kpt_idx']]
-        if cell is None:
-            cell = Cell(tri,tri['image0_kpt_idx'],tri['image1_kpt_idx'])          
-        else:
-            cell.append(tri)
-        triangles[tri['image0_kpt_idx']][tri['image1_kpt_idx']] = cell
+            if DEBUG_PRINT:
+                cnt+=1
+                print(f'{cnt}: image0_kpt:{tri["image0_kpt"]} image1_kpt:{tri["image1_kpt"]} image2_kpt:{tri["image2_kpt"]}')
+        if DEBUG_PRINT:
+            cnt = 0
+            print('-'*20)
+        for tri in triangles_per_kpt20:
+            cell = triangles_kpt[tri['image0_kpt_idx']][tri['image1_kpt_idx']]
+            if cell is None:
+                cell = Cell(tri,tri['image0_kpt_idx'],tri['image1_kpt_idx'])          
+            else:
+                cell.append(tri)
+            triangles_kpt[tri['image0_kpt_idx']][tri['image1_kpt_idx']] = cell
+        triangles.append(triangles_kpt)
     return triangles
+
 def draw_triangles(image0,
                     image1,
                     image2,
                     matching01,
                     matching12,
                     matching20,
-                    margin=10):
-    all_matrix = create_triangles(image0,
+                    margin=10,
+                    for_kpts=[120]):
+    tris = create_triangles(image0,
                     image1,
                     image2,
                     matching01,
                     matching12,
                     matching20,
                     )
-    idxs = all_matrix != None
-    matches = all_matrix[idxs]
+    KEY_POINT = for_kpts[0]
+    idxs = np.argwhere(tris[KEY_POINT] != None)
+    from_current_kpt = tris[KEY_POINT]
+    matches = [from_current_kpt[idx[0],idx[1]] for idx in idxs]
     H2, W2 = 0,0
     H0, W0 = image0.shape
     H1, W1 = image1.shape

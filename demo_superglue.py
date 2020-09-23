@@ -250,8 +250,10 @@ if __name__ == '__main__':
         'full_scores':full_scores20}
         matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
         'full_scores':full_scores12}
+        '''
         out = make_matching_plot_one_to_many(image0,image1,image2
         ,matching01,matching12,matching20,path=None)
+        '''
         tri_out = draw_triangles(image0,image1,image2
         ,matching01,matching12,matching20)
         data1 = data2.copy()
