@@ -714,8 +714,8 @@ def draw_triangles(image0,
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
     for match in matches:
-        scores = [item['total_score'] for item in match.l]
-        scores = [score.numpy()**(1.0/32.0) for score in scores]
+        scores = [item['total_score']**(1.0/3) for item in match.l]    
+        scores = [score.numpy()**(1.0/8.0) for score in scores]
         colors = cm.jet(scores)
         l = match.l
         l.sort(key=sortCell)
