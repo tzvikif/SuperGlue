@@ -661,7 +661,7 @@ def draw_triangles(image0,
                     matching12,
                     matching20,
                     margin=10,
-                    for_kpts=[200]):
+                    for_kpts=[30]):
     tris = create_triangles(image0,
                     image1,
                     image2,
@@ -683,10 +683,10 @@ def draw_triangles(image0,
     H2_margin_w = int((W-W2)/2)
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
-    total_scores = [item['score12_20'].numpy()**(1.0/2) for item in matches]
+    #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
     ls = np.linspace(0.1,0.9,3)
     for match_idx,match in enumerate(matches):
-        avg_score = match['score12_20']**(1.0/3)
+        avg_score = match['score12_20']**(1.0/2.0)
         colors = cm.jet(ls)
         color = colors[match_idx]
         c = (np.array(color)*255).astype(int)
@@ -710,26 +710,27 @@ def draw_triangles(image0,
         Ht = int(30 * sc)  # text height
         txt_color_fg = c
         txt_color_bg = (0, 0, 0)
+        C = 200
         avg_score_text = str(round(np.asscalar(avg_score.numpy()),5))
         orig_score_text = str(round(np.asscalar(match['score01'].numpy()),5))
         for text_idx, t in enumerate(orig_score_text):
-            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
-            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
 
         for text_idx, t in enumerate(avg_score_text):
-            cv2.putText(out, t, (int(+12*((sc+12)+sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(+12*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
-            cv2.putText(out, t, (int(12*((sc+12)+sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(12*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
         #title
         title_text = 'original | averaged'
         txt_color_fg = (200, 200, 50)
         for text_idx, t in enumerate(list(title_text)):
-            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
-            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
 
     return out
