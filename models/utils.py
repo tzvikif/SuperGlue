@@ -555,11 +555,10 @@ def error_colormap(x):
     return np.clip(
         np.stack([2-x*2, x*2, np.zeros_like(x), np.ones_like(x)], -1), 0, 1)
 class Cell():
-    def __init__(self,item,image0_idx_kpt,image1_idx_kpt):
+    def __init__(self,image0_idx_kpt):
         self.l = list()
-        self.l.append(item)
         self.image0_idx_kpt = image0_idx_kpt
-        self.image1_idx_kpt = image1_idx_kpt
+        #self.image1_idx_kpt = image1_idx_kpt
     def append(self,item):
         self.l.append(item)
 def sortCell(val):
@@ -599,13 +598,11 @@ def create_triangles(image0,
     kpts01_0, kpts01_1 = np.round(kpts01_0).astype(int), np.round(kpts01_1).astype(int)
     kpts20_0, kpts20_2 = np.round(kpts20_0).astype(int), np.round(kpts20_2).astype(int)
     kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
-    triangles = list()
     cnt = 0
+    triangles_per_match = np.full((kpts01_0.shape[0]),None)
+    match_total_score = list()
     for START_KEY_POINT in range(len(kpts01_0)):
-        triangles_per_kpt01 = list()
-        triangles_per_kpt12 = list()
-        triangles_per_kpt20 = list()
-        triangles_kpt = np.full((kpts01_0.shape[0],kpts01_1.shape[0]),None)
+        matches01 = list()
         #01
         (x0, y0) = kpts01_0[START_KEY_POINT]
         red = (0, 30, 250)
@@ -624,64 +621,38 @@ def create_triangles(image0,
                 (x1,y1) = sorted_kpts01_1
             else:
                 (x1, y1) = sorted_kpts01_1[i]
-            triangles_per_kpt01.append({'image0_kpt':(x0,y0),'score01':score,
+            matches01.append({'image0_kpt':(x0,y0),'score01':score,
             'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,'image1_kpt_idx':index_sorted_scores01[i]})
         #12
-        index_kpts_dest = list()
-        for i,idx in enumerate(index_sorted_scores01[:LINES]):
-            tri = triangles_per_kpt01[i]
-            kpts1 = kpts01_1[idx]
-            scores12_kpt = scores12_orig[0][idx,:]
-            index_sorted_scores12 = scores12_kpt.argsort()
-            t = index_sorted_scores12.numpy()
-            index_sorted_scores12 = torch.from_numpy(t)[-1-LINES+1:]
-            scores12_sorted = scores12_kpt[index_sorted_scores12]
-            sorted_kpts12_2 = kpts12_2[index_sorted_scores12]
-            (x0, y0) = kpts1
-            for i,score in enumerate(scores12_sorted):
-                index_kpts_dest.append(index_sorted_scores12[i])
-                if LINES == 1:
-                    (x1, y1) = sorted_kpts12_2
-                else:    
-                    (x1, y1) = sorted_kpts12_2[i]
-                triangles_per_kpt12.append({'image0_kpt':tri['image0_kpt'],'score01':tri['score01'],
-                'image1_kpt':tri['image1_kpt'],'score12':score,'image2_kpt':(x1, y1),
-                'image0_kpt_idx':tri['image0_kpt_idx'],'image1_kpt_idx':tri['image1_kpt_idx']})
-        #20
-        (x1,y1) = kpts20_0[START_KEY_POINT]
-        for i,idx in enumerate(index_kpts_dest):
-            tri = triangles_per_kpt12[i]
-            kpts2 = kpts12_2[idx]
-            scores20_kpt = scores20_orig[0][idx,:]
-            index_scores20_sorted = scores20_kpt.argsort()
-            t = index_scores20_sorted.numpy()
-            #t = t[::-1][:LINES].copy()
-            index_scores20_sorted = torch.from_numpy(t)[-1-LINES+1:]
-            scores20_sorted = scores20_kpt[index_scores20_sorted]
-            sorted_kpts20_0 = kpts20_0[index_scores20_sorted]
-            (x0, y0) = kpts2
-            score20 = scores20_kpt[START_KEY_POINT]
-            triangles_per_kpt20.append({'image0_kpt':tri['image0_kpt'],'score01':tri['score01'],
-            'image1_kpt':tri['image1_kpt'],
-            'image0_kpt_idx':tri['image0_kpt_idx'],'image1_kpt_idx':tri['image1_kpt_idx'],
-            'score12':tri['score12'],'image2_kpt':(x0, y0),
-            'score20':score20,
-            'total_score':tri['score01']*tri['score12']*score20})
-            if DEBUG_PRINT:
-                cnt+=1
-                print(f'{cnt}: image0_kpt:{tri["image0_kpt"]} image1_kpt:{tri["image1_kpt"]} image2_kpt:{tri["image2_kpt"]}')
+        top_matches = Cell(START_KEY_POINT)
+        for match in matches01:
+            max_score = 0.0
+            idx_kpt_image1 = match['image1_kpt_idx']
+            idx_kpt_image0 = match['image0_kpt_idx']
+            for kpt_idx_image2,kpt_image2 in enumerate(kpts12_2):
+                #score12
+                score12 = scores12_orig[0,idx_kpt_image1,kpt_idx_image2]
+                #score20
+                score20 = scores20_orig[0,kpt_idx_image2,idx_kpt_image0]
+                if max_score < score12*score20:
+                    max_score = score12*score20
+                    max_score12 = score12
+                    max_kpt_idx_image2 = kpt_idx_image2
+                    max_score20 = score20
+            match['image2_kpt'] = kpts12_2[max_kpt_idx_image2]
+            match['score12'] = max_score12
+            match['score20'] = max_score20
+            match['score12_20'] = max_score12*max_score20
+            #save largest score
+            top_matches.append(match)
+        triangles_per_match[match['image0_kpt_idx']] = top_matches
+        if DEBUG_PRINT:
+            cnt+=1
+            print(f'{cnt}: image0_kpt:{tri["image0_kpt"]} image1_kpt:{tri["image1_kpt"]} image2_kpt:{tri["image2_kpt"]}')
         if DEBUG_PRINT:
             cnt = 0
             print('-'*20)
-        for tri in triangles_per_kpt20:
-            cell = triangles_kpt[tri['image0_kpt_idx']][tri['image1_kpt_idx']]
-            if cell is None:
-                cell = Cell(tri,tri['image0_kpt_idx'],tri['image1_kpt_idx'])          
-            else:
-                cell.append(tri)
-            triangles_kpt[tri['image0_kpt_idx']][tri['image1_kpt_idx']] = cell
-        triangles.append(triangles_kpt)
-    return triangles
+    return triangles_per_match
 
 def draw_triangles(image0,
                     image1,
@@ -699,9 +670,8 @@ def draw_triangles(image0,
                     matching20,
                     )
     KEY_POINT = for_kpts[0]
-    idxs = np.argwhere(tris[KEY_POINT] != None)
-    from_current_kpt = tris[KEY_POINT]
-    matches = [from_current_kpt[idx[0],idx[1]] for idx in idxs]
+    cell = tris[KEY_POINT]
+    matches = cell.l
     H2, W2 = 0,0
     H0, W0 = image0.shape
     H1, W1 = image1.shape
@@ -713,28 +683,55 @@ def draw_triangles(image0,
     H2_margin_w = int((W-W2)/2)
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
-    for match in matches:
-        scores = [item['total_score']**(1.0/3) for item in match.l]    
-        scores = [score.numpy()**(1.0/8.0) for score in scores]
-        colors = cm.jet(scores)
-        l = match.l
-        l.sort(key=sortCell)
-        for i,item in enumerate(l):
-            color = colors[i]
-            c = (np.array(color)*255).astype(int)
-            c = c.tolist()
-            (x0,y0) = item['image0_kpt']
-            (x1,y1) = item['image1_kpt']
-            cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
-                 color=c, thickness=1, lineType=cv2.LINE_AA)
-            (x0,y0) = item['image1_kpt']
-            (x1,y1) = item['image2_kpt']
-            cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
-                    color=c, thickness=1, lineType=cv2.LINE_AA)
-            (x0,y0) = item['image2_kpt']
-            (x1,y1) = item['image0_kpt']
-            cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
-                    color=c, thickness=1, lineType=cv2.LINE_AA)
+    total_scores = [item['score12_20'].numpy()**(1.0/2) for item in matches]
+    ls = np.linspace(0.1,0.9,3)
+    for match_idx,match in enumerate(matches):
+        avg_score = match['score12_20']**(1.0/3)
+        colors = cm.jet(ls)
+        color = colors[match_idx]
+        c = (np.array(color)*255).astype(int)
+        c = c.tolist()
+        (x0,y0) = match['image0_kpt']
+        (x1,y1) = match['image1_kpt']
+        cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
+                color=c, thickness=1, lineType=cv2.LINE_AA)
+        (x0,y0) = match['image1_kpt']
+        (x1,y1) = match['image2_kpt']
+        cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
+                color=c, thickness=1, lineType=cv2.LINE_AA)
+        (x0,y0) = match['image2_kpt']
+        (x1,y1) = match['image0_kpt']
+        cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
+                color=c, thickness=1, lineType=cv2.LINE_AA)
+        # Scale factor for consistent visualization across scales.
+        sc = min(H / 640., 2.0)
+
+        # Big text.
+        Ht = int(30 * sc)  # text height
+        txt_color_fg = c
+        txt_color_bg = (0, 0, 0)
+        avg_score_text = str(round(np.asscalar(avg_score.numpy()),5))
+        orig_score_text = str(round(np.asscalar(match['score01'].numpy()),5))
+        for text_idx, t in enumerate(orig_score_text):
+            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
+            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+
+        for text_idx, t in enumerate(avg_score_text):
+            cv2.putText(out, t, (int(+12*((sc+12)+sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
+            cv2.putText(out, t, (int(12*((sc+12)+sc+text_idx)), Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+        #title
+        title_text = 'original | averaged'
+        txt_color_fg = (200, 200, 50)
+        for text_idx, t in enumerate(list(title_text)):
+            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
+            cv2.putText(out, t, (int(12*(sc+text_idx)), Ht), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+
     return out
 
 def make_matching_plot_one_to_many(image0,
