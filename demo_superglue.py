@@ -251,18 +251,16 @@ if __name__ == '__main__':
         matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
         'full_scores':full_scores12}
 
-        matching10 = {'kpts_s':kpts01_0,'kpts_d':kpts01_1,
+        matching10 = {'kpts_s':kpts01_1,'kpts_d':kpts01_0,
         'full_scores':full_scores01.transpose(2,1)}
-        matching02 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
+        matching02 = {'kpts_s':kpts20_0,'kpts_d':kpts20_2,
         'full_scores':full_scores20.transpose(2,1)}
-        matching21 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
+        matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
         'full_scores':full_scores12.transpose(2,1)}
         
         
-
-
-        tri_out = draw_triangles(image0,image1,image2
-        ,matching01,matching12,matching20)
+        tri_out = draw_triangles(image0,image2,image1,
+        matching02,matching21,matching10)
         data1 = data2.copy()
         data0 = {k[:-1]+'0': data1[k] for k in data1.keys()}
         image0 = image1.copy()
