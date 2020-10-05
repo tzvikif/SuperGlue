@@ -12,11 +12,13 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": ["--input",
-                "assets/freiburg_sequence/",
+                "myImages/",
                 "--output_dir",
-                "dump_demo_sequence",
+                "/Users/tzvikif/OneDrive - University of Haifa/desk_dump_demo_sequence",
                 "--resize", "320", "240",
-                "--no_display"]
+                "--no_display",
+                "--superglue",
+                "indoor"]
         }
 
         
