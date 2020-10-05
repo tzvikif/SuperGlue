@@ -601,6 +601,13 @@ def create_triangles(image0,
     cnt = 0
     triangles_per_match = np.full((kpts01_0.shape[0]),None)
     match_total_score = list()
+
+    H = np.array([[0.49838, -0.015725, 33.278],
+                    [-0.18045, 0.77392, 59.799],
+                    [-0.00064863, -4.2793e-05, 0.99978]])
+    a = warp(kpts01_0,H)
+
+
     for START_KEY_POINT in range(len(kpts01_0)):
         matches01 = list()
         #01
@@ -652,7 +659,7 @@ def create_triangles(image0,
         if DEBUG_PRINT:
             cnt = 0
             print('-'*20)
-    return triangles_per_match
+    return triangles_per_match,a
 
 def draw_triangles(image0,
                     image1,
@@ -661,15 +668,15 @@ def draw_triangles(image0,
                     matching12,
                     matching20,
                     margin=10,
-                    for_kpts=[30]):
-    tris = create_triangles(image0,
+                    for_kpt=30):
+    tris,warped_kpts = create_triangles(image0,
                     image1,
                     image2,
                     matching01,
                     matching12,
                     matching20,
                     )
-    KEY_POINT = for_kpts[0]
+    KEY_POINT = for_kpt
     cell = tris[KEY_POINT]
     matches = cell.l
     H2, W2 = 0,0
@@ -687,6 +694,7 @@ def draw_triangles(image0,
     ls = np.linspace(0.1,0.9,3)
     for match_idx,match in enumerate(matches):
         avg_score = match['score12_20']**(1.0/2.0)
+        idx_kpt = match['image0_kpt_idx']
         colors = cm.jet(ls)
         color = colors[match_idx]
         c = (np.array(color)*255).astype(int)
@@ -695,6 +703,14 @@ def draw_triangles(image0,
         (x1,y1) = match['image1_kpt']
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
+        print('-'*20)
+        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1})')
+        warped_x1 = int(warped_kpts[idx_kpt,0])
+        warped_y1 = int(warped_kpts[idx_kpt,1])
+        print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
+        red = (0, 30, 250)
+        cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
+        #cv2.circle(out, (margin+W0+warped_x1, warped_y1), 2, red, -1, lineType=cv2.LINE_AA)
         (x0,y0) = match['image1_kpt']
         (x1,y1) = match['image2_kpt']
         cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
@@ -732,8 +748,19 @@ def draw_triangles(image0,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
             cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
-
     return out
+
+def warp(source_image_kpts,H):
+    H_t = np.transpose(H,(1,0))
+    row_size = source_image_kpts.shape[0]
+    source_image_kpts_homogenous = np.append(source_image_kpts,np.ones((row_size,1)),axis=1)
+    source_image_kpts_homogenous_t = np.transpose(source_image_kpts_homogenous,(1,0))
+    homogen = lambda x: x[:-1]/x[-1]
+    out = np.matmul(H,source_image_kpts_homogenous_t)
+    warped_kpts = np.transpose(out,(1,0))
+    warped_kpts = np.array([homogen(x) for x in warped_kpts])
+    
+    return warped_kpts
 
 def make_matching_plot_one_to_many(image0,
                             image1,

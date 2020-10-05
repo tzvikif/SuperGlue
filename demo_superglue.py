@@ -49,6 +49,7 @@ import argparse
 import cv2
 import matplotlib.cm as cm
 import torch
+import numpy as np
 
 from models.matching import Matching
 from models.utils import (AverageTimer, VideoStreamer,
@@ -58,7 +59,93 @@ from models.utils import (AverageTimer, VideoStreamer,
                           draw_triangles)
 
 torch.set_grad_enabled(False)
+# create a folder with same many samples.
+# each sample consist of 3 images. every sample has different START_KPTS 
+def ex1(vs,opt):
+    frame, ret = vs.next_frame()
+    assert ret, 'Error when reading the first frame (try different --input?)'
+    #superpoint image0
+    frame_tensor = frame2tensor(frame, device)
+    data = matching.superpoint({'image': frame_tensor})
+    data0 = {k+'0': data[k] for k in keys}
+    data0['image0'] = frame_tensor
+    image0 = frame
+    image_id = 0
+    #superpoint image1
+    frame, ret = vs.next_frame()
+    assert ret, 'Error when reading the first frame (try different --input?)'
+    stem0, stem1 = image_id, vs.i - 1
+    frame_tensor = frame2tensor(frame, device)
+    data = matching.superpoint({'image': frame_tensor})
+    data1 = {k+'1': data[k] for k in keys}
+    data1['image1'] = frame_tensor
+    image1 = frame
+    last_image_id = 1
+    #superpoint image2
+    frame_tensor = frame2tensor(frame, device)
+    data = matching.superpoint({'image': frame_tensor})
+    data2 = {k+'0': data[k] for k in keys}
+    data2['image0'] = frame_tensor
+    image2 = frame
+    last_image_id = 2
 
+    if opt.output_dir is not None:
+        print('==> Will write outputs to {}'.format(opt.output_dir))
+        Path(opt.output_dir).mkdir(exist_ok=True)
+    timer = AverageTimer()
+    timer.update('data')
+    #01
+    pred01 = matching({**data0, **data1})
+    kpts01_0 = data0['keypoints0'][0].cpu().numpy()
+    kpts01_1 = data1['keypoints1'][0].cpu().numpy()
+    matches01_to_0 = pred01['matches0'][0].cpu().numpy()
+    confidence01_to_0 = pred01['matching_scores0'][0].cpu().numpy()
+    full_scores01 = pred01['full_scores']
+    #12
+    pred21 = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
+    kpts12_1 = data1['keypoints1'][0].cpu().numpy()
+    kpts12_2 = data2['keypoints0'][0].cpu().numpy()
+    matches12_to_2 = pred21['matches0'][0].cpu().numpy()
+    confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
+    full_scores12 = torch.transpose(pred21['full_scores'],2,1)
+    #20
+    data2 = None
+    data = matching.superpoint({'image': frame_tensor})
+    data2 = {k+'1': data[k] for k in keys}
+    data2['image1'] = frame_tensor
+    pred02 = matching({**data0, **data2})
+    kpts20_0 = data0['keypoints0'][0].cpu().numpy()
+    kpts20_2 = data2['keypoints1'][0].cpu().numpy()
+    matches20_to_0 = pred02['matches0'][0].cpu().numpy()
+    confidence20_to_0 = pred02['matching_scores0'][0].cpu().numpy()
+    full_scores20 = torch.transpose(pred02['full_scores'],2,1) 
+
+    timer.update('forward')
+    
+    matching01 = {'kpts_s':kpts01_0,'kpts_d':kpts01_1,
+    'full_scores':full_scores01}
+    matching20 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
+    'full_scores':full_scores20}
+    matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
+    'full_scores':full_scores12}
+
+    matching10 = {'kpts_s':kpts01_1,'kpts_d':kpts01_0,
+    'full_scores':full_scores01.transpose(2,1)}
+    matching02 = {'kpts_s':kpts20_0,'kpts_d':kpts20_2,
+    'full_scores':full_scores20.transpose(2,1)}
+    matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
+    'full_scores':full_scores12.transpose(2,1)}
+    for kpt_idx,_ in enumerate(kpts01_0):
+        tri_out = draw_triangles(image0,image2,image1,
+        matching02,matching21,matching10,for_kpt=kpt_idx)
+        if opt.output_dir is not None:
+            #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
+            stem = f'matches_{kpt_idx}'
+            out_file = str(Path(opt.output_dir, stem + '.png'))
+            print('\nWriting image to {}'.format(out_file))
+            cv2.imwrite(out_file, tri_out)
+    cv2.destroyAllWindows()
+    vs.cleanup()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -152,6 +239,12 @@ if __name__ == '__main__':
 
     vs = VideoStreamer(opt.input, opt.resize, opt.skip,
                        opt.image_glob, opt.max_length)
+    # 1.
+    # create a folder with same many samples.
+    # each sample consist of 3 images. every sample has different START_KPTS 
+    ex1(vs,opt)
+    # 2. check accuracy with H matrix.
+    '''
     frame, ret = vs.next_frame()
     assert ret, 'Error when reading the first frame (try different --input?)'
 
@@ -192,9 +285,14 @@ if __name__ == '__main__':
           '\tq: quit')
 
     timer = AverageTimer()
-
+    jump = True
+    step = 0
     while True:
+        if jump:
+            for _ in range(step):
+                frame, ret = vs.next_frame()
         frame, ret = vs.next_frame()
+        jump = not jump
         stem2 = vs.i - 1
         if not ret:
             print('Finished demo_superglue.py')
@@ -258,9 +356,12 @@ if __name__ == '__main__':
         matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
         'full_scores':full_scores12.transpose(2,1)}
         
-        
-        tri_out = draw_triangles(image0,image2,image1,
-        matching02,matching21,matching10)
+        if  jump:    #was a jump
+            tri_out = draw_triangles(image0,image2,image1,
+            matching02,matching21,matching10,for_kpt=np.random.randint(0,kpts20_0.shape[0]))
+        else:
+            tri_out = draw_triangles(image0,image1,image2,
+            matching01,matching12,matching20,for_kpt=45)
         data1 = data2.copy()
         data0 = {k[:-1]+'0': data1[k] for k in data1.keys()}
         image0 = image1.copy()
@@ -306,3 +407,4 @@ if __name__ == '__main__':
 
     cv2.destroyAllWindows()
     vs.cleanup()
+    '''
