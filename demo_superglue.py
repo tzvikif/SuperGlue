@@ -82,6 +82,7 @@ def ex1(vs,opt):
     image1 = frame
     last_image_id = 1
     #superpoint image2
+    frame, ret = vs.next_frame()
     frame_tensor = frame2tensor(frame, device)
     data = matching.superpoint({'image': frame_tensor})
     data2 = {k+'0': data[k] for k in keys}
@@ -101,6 +102,7 @@ def ex1(vs,opt):
     matches01_to_0 = pred01['matches0'][0].cpu().numpy()
     confidence01_to_0 = pred01['matching_scores0'][0].cpu().numpy()
     full_scores01 = pred01['full_scores']
+    full_scores01_wo_sinkhorn = pred01['full_scores_wo_sinkhon']
     #12
     pred21 = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
     kpts12_1 = data1['keypoints1'][0].cpu().numpy()
@@ -108,6 +110,7 @@ def ex1(vs,opt):
     matches12_to_2 = pred21['matches0'][0].cpu().numpy()
     confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
     full_scores12 = torch.transpose(pred21['full_scores'],2,1)
+    full_scores12_wo_sinkhorn = torch.transpose(pred21['full_scores_wo_sinkhon'],2,1)
     #20
     data2 = None
     data = matching.superpoint({'image': frame_tensor})
@@ -119,23 +122,31 @@ def ex1(vs,opt):
     matches20_to_0 = pred02['matches0'][0].cpu().numpy()
     confidence20_to_0 = pred02['matching_scores0'][0].cpu().numpy()
     full_scores20 = torch.transpose(pred02['full_scores'],2,1) 
+    full_scores20_wo_sinkhorn = torch.transpose(pred02['full_scores_wo_sinkhon'],2,1) 
 
     timer.update('forward')
     
     matching01 = {'kpts_s':kpts01_0,'kpts_d':kpts01_1,
-    'full_scores':full_scores01}
+    'full_scores':full_scores01,
+    'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn}
     matching20 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
-    'full_scores':full_scores20}
+    'full_scores':full_scores20,
+    'full_scores_wo_sinkhorn':full_scores20_wo_sinkhorn}
     matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
-    'full_scores':full_scores12}
+    'full_scores':full_scores12,
+    'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn}
 
     matching10 = {'kpts_s':kpts01_1,'kpts_d':kpts01_0,
-    'full_scores':full_scores01.transpose(2,1)}
-    matching02 = {'kpts_s':kpts20_0,'kpts_d':kpts20_2,
-    'full_scores':full_scores20.transpose(2,1)}
+    'full_scores':full_scores01.transpose(2,1),
+    'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn.transpose(2,1)}
+    matching02 = {  'kpts_s':kpts20_0,'kpts_d':kpts20_2,
+    'full_scores':full_scores20.transpose(2,1),
+    'full_scores_wo_sinkhorn':full_scores20_wo_sinkhorn.transpose(2,1)}
     matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
-    'full_scores':full_scores12.transpose(2,1)}
-    for kpt_idx,_ in enumerate(kpts01_0):
+    'full_scores':full_scores12.transpose(2,1),
+    'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
+    kpts_perm = np.random.permutation(len(kpts01_0))
+    for idx,kpt_idx in enumerate(kpts_perm):
         tri_out = draw_triangles(image0,image2,image1,
         matching02,matching21,matching10,for_kpt=kpt_idx)
         if opt.output_dir is not None:

@@ -570,7 +570,7 @@ def create_triangles(image0,
                     matching12,
                     matching20,
                     margin=10):
-    LINES = 3
+    LINES = 5
     H2, W2 = 0,0
     DEBUG_PRINT = False
     H0, W0 = image0.shape
@@ -586,6 +586,7 @@ def create_triangles(image0,
     scores01_orig = matching01['full_scores']
     scores20_orig = matching20['full_scores']
     scores12_orig = matching12['full_scores']
+    scores01_wo_sinkhorn_orig = matching01['full_scores_wo_sinkhorn']
     kpts01_0 = matching01['kpts_s']
     kpts01_1 = matching01['kpts_d']
     kpts20_0 = matching20['kpts_d']
@@ -602,10 +603,11 @@ def create_triangles(image0,
     triangles_per_match = np.full((kpts01_0.shape[0]),None)
     match_total_score = list()
 
-    H = np.array([[0.49838, -0.015725, 33.278],
-                    [-0.18045, 0.77392, 59.799],
-                    [-0.00064863, -4.2793e-05, 0.99978]])
-    a = warp(kpts01_0,H)
+    H_garden_1_5 = np.array([[0.22838,0.03913, 28.694],
+                    [-0.27439 ,0.85037, 47.532],
+                    [-0.00058928, 2.8556e-05, 0.99128]])
+
+    a = warp(kpts01_0,H_garden_1_5)
 
 
     for START_KEY_POINT in range(len(kpts01_0)):
@@ -615,21 +617,25 @@ def create_triangles(image0,
         red = (0, 30, 250)
         cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
         scores01 = scores01_orig[0,START_KEY_POINT,:]
+        scores01_wo_sinkhorn = scores01_wo_sinkhorn_orig[0,START_KEY_POINT,:]
         index_sorted_scores01 = scores01.argsort()
         t = index_sorted_scores01.numpy()
         #t = t[::-1].copy()
         index_sorted_scores01 = torch.from_numpy(t)[-1-LINES+1:]
         sorted_scores01 = scores01[index_sorted_scores01]
+        sorted_scores01_wo_sinkhorn = scores01_wo_sinkhorn[index_sorted_scores01]
         sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
         red = (0, 30, 250)
         cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-        for i,score in enumerate(sorted_scores01):
+        for i,(score,score_wo_sinkhorn) in enumerate( zip(sorted_scores01,sorted_scores01_wo_sinkhorn) ):
             if LINES == 1:
                 (x1,y1) = sorted_kpts01_1
             else:
                 (x1, y1) = sorted_kpts01_1[i]
             matches01.append({'image0_kpt':(x0,y0),'score01':score,
-            'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,'image1_kpt_idx':index_sorted_scores01[i]})
+            'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,
+            'image1_kpt_idx':index_sorted_scores01[i],
+            'score01_wo_skinhorn':score_wo_sinkhorn})
         #12
         top_matches = Cell(START_KEY_POINT)
         for match in matches01:
@@ -691,7 +697,7 @@ def draw_triangles(image0,
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
     out = np.stack([out]*3, -1)
     #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
-    ls = np.linspace(0.1,0.9,3)
+    ls = np.linspace(0.1,0.9,5)
     for match_idx,match in enumerate(matches):
         avg_score = match['score12_20']**(1.0/2.0)
         idx_kpt = match['image0_kpt_idx']
@@ -720,26 +726,34 @@ def draw_triangles(image0,
         cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
         # Scale factor for consistent visualization across scales.
-        sc = min(H / 640., 2.0)
+        sc = min(H / 800., 2.0)
 
         # Big text.
-        Ht = int(30 * sc)  # text height
+        Ht = int(25 * sc)  # text height
         txt_color_fg = c
         txt_color_bg = (0, 0, 0)
         C = 200
-        avg_score_text = str(round(np.asscalar(avg_score.numpy()),5))
-        orig_score_text = str(round(np.asscalar(match['score01'].numpy()),5))
+        avg_score_text = str(round(np.asscalar(avg_score.numpy()),2))
+        orig_score_text = str(round(np.asscalar(match['score01'].numpy()),2))
+        wo_skinhorn_score_text = str(round(np.asscalar(match['score01_wo_skinhorn'].numpy()),2))
         for text_idx, t in enumerate(orig_score_text):
-            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(13*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
-            cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(13*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
 
         for text_idx, t in enumerate(avg_score_text):
-            cv2.putText(out, t, (int(+12*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(13*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
-            cv2.putText(out, t, (int(12*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+            cv2.putText(out, t, (int(13*((sc+12)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+        #before skinhorn
+        for text_idx, t in enumerate(wo_skinhorn_score_text):
+            cv2.putText(out, t, (int(+12*((sc+24)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
+            cv2.putText(out, t, (int(12*((sc+24)+sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
+                        1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+        
         #title
         title_text = 'original | averaged'
         txt_color_fg = (200, 200, 50)

@@ -256,7 +256,7 @@ class SuperGlue(nn.Module):
         # Compute matching descriptor distance.
         scores = torch.einsum('bdn,bdm->bnm', mdesc0, mdesc1)
         scores = scores / self.config['descriptor_dim']**.5
-
+        full_scores_wo_sinkhorn = scores
         # Run the optimal transport.
         scores = log_optimal_transport(
             scores, self.bin_score,
@@ -281,5 +281,6 @@ class SuperGlue(nn.Module):
             'matches1': indices1, # use -1 for invalid match
             'matching_scores0': mscores0,
             'matching_scores1': mscores1,
-            'full_scores':full_scores
+            'full_scores':full_scores,
+            'full_scores_wo_sinkhon':full_scores_wo_sinkhorn
         }
