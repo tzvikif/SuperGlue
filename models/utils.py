@@ -570,7 +570,7 @@ def create_triangles(image0,
                     matching12,
                     matching20,
                     margin=10):
-    LINES = 5
+    LINES = 1
     H2, W2 = 0,0
     DEBUG_PRINT = False
     H0, W0 = image0.shape
@@ -603,12 +603,22 @@ def create_triangles(image0,
     triangles_per_match = np.full((kpts01_0.shape[0]),None)
     match_total_score = list()
 
-    H_garden_1_5 = np.array([[0.22838,0.03913, 28.694],
-                    [-0.27439 ,0.85037, 47.532],
-                    [-0.00058928, 2.8556e-05, 0.99128]])
-
-    a = warp(kpts01_0,H_garden_1_5)
-
+    H_fest_1_6 = np.array([[2.5614 ,0.083075, 163.07],
+                    [0.94137 ,2.2586 ,-732.08],
+                    [0.0017783 ,2.1603e-05 ,0.99316]])
+    H_fest_1_4 = np.array([[1.6996 ,0.02142 ,200.09],
+                    [0.31149 ,1.4251 ,-246.25],
+                    [0.00053609 ,-6.8541e-05 ,0.99889]])
+    H_fest_1_2 = np.array([[0.75268, -0.0092452, -71.273],
+                    [-0.17607, 0.97566, 6.3105],
+                    [-0.00029582 ,-1.5187e-05 ,0.99957]])
+    H_dogman_1_2 = np.array([[0.49838, -0.015725 ,33.278],
+                    [-0.18045, 0.77392, 59.799],
+                    [-0.00064863, -4.2793e-05, 0.99978]])
+    H_fest_4_1 = np.linalg.inv(H_fest_1_4)
+    #H_fest_4_6 = np.matmul(H_fest_1_6,H_fest_4_1)
+    H_fest_4_6 = np.matmul(H_fest_4_1,H_fest_1_6)
+    a = warp(kpts01_0,H_fest_1_2)
 
     for START_KEY_POINT in range(len(kpts01_0)):
         matches01 = list()
@@ -666,6 +676,12 @@ def create_triangles(image0,
             cnt = 0
             print('-'*20)
     return triangles_per_match,a
+def write_to_file(text_list,file_dest):
+    with open(file_dest,'w',encoding='utf-8') as f:
+        for d in text_list:
+            f.write(f"{d['idx']},{d['score01']}, ({d['image0_kpt'][0]},{d['image0_kpt'][1]}), ")
+            f.write(f"({d['image1_kpt'][0]},{d['image1_kpt'][1]}), ")
+            f.write(f"({d['warped_image1_kpt'][0]},{d['warped_image1_kpt'][1]})\n")
 
 def draw_triangles(image0,
                     image1,
@@ -698,6 +714,7 @@ def draw_triangles(image0,
     out = np.stack([out]*3, -1)
     #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
     ls = np.linspace(0.1,0.9,5)
+    text_matches = list()
     for match_idx,match in enumerate(matches):
         avg_score = match['score12_20']**(1.0/2.0)
         idx_kpt = match['image0_kpt_idx']
@@ -710,10 +727,17 @@ def draw_triangles(image0,
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
         print('-'*20)
-        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1})')
+        score01 = round(np.asscalar(match['score01'].numpy()),2)
+        if score01 < 0.5:
+            continue
+        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01}')
         warped_x1 = int(warped_kpts[idx_kpt,0])
         warped_y1 = int(warped_kpts[idx_kpt,1])
         print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
+        d = {'image0_kpt':(x0,y0),'image1_kpt':(x1,y1),
+        'idx':KEY_POINT,'warped_image1_kpt':(warped_x1,warped_y1),
+        'score01':round(np.asscalar(match['score01'].numpy()),2)}
+        text_matches.append(d)
         red = (0, 30, 250)
         cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
         #cv2.circle(out, (margin+W0+warped_x1, warped_y1), 2, red, -1, lineType=cv2.LINE_AA)
@@ -762,7 +786,7 @@ def draw_triangles(image0,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
             cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
-    return out
+    return out,text_matches
 
 def warp(source_image_kpts,H):
     H_t = np.transpose(H,(1,0))

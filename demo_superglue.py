@@ -56,7 +56,8 @@ from models.utils import (AverageTimer, VideoStreamer,
                           make_matching_plot_fast, frame2tensor,
                           make_matching_plot_one_to_many,
                           create_triangles,
-                          draw_triangles)
+                          draw_triangles,
+                          write_to_file)
 
 torch.set_grad_enabled(False)
 # create a folder with same many samples.
@@ -93,6 +94,9 @@ def ex1(vs,opt):
     if opt.output_dir is not None:
         print('==> Will write outputs to {}'.format(opt.output_dir))
         Path(opt.output_dir).mkdir(exist_ok=True)
+    if opt.text_output_dir is not None:
+        print('==> Will write text outputs to {}'.format(opt.text_output_dir))
+        Path(opt.text_output_dir).mkdir(exist_ok=True)
     timer = AverageTimer()
     timer.update('data')
     #01
@@ -146,15 +150,24 @@ def ex1(vs,opt):
     'full_scores':full_scores12.transpose(2,1),
     'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
     kpts_perm = np.random.permutation(len(kpts01_0))
+    text = list()
+    #text_file_path = 'text_output/kpts.txt'
     for idx,kpt_idx in enumerate(kpts_perm):
-        tri_out = draw_triangles(image0,image2,image1,
-        matching02,matching21,matching10,for_kpt=kpt_idx)
+        #tri_out,text_matches = draw_triangles(image0,image2,image1,
+        #matching02,matching21,matching10,for_kpt=kpt_idx)
+        tri_out,text_matches = draw_triangles(image0,image1,image2,
+        matching01,matching12,matching20,for_kpt=kpt_idx)
+        text.extend(text_matches)
+        if opt.text_output_dir is not None:
+            text_out_file_path = str(Path(opt.text_output_dir, 'kpts.txt'))
+            write_to_file(text,text_out_file_path)
         if opt.output_dir is not None:
             #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
             stem = f'matches_{kpt_idx}'
             out_file = str(Path(opt.output_dir, stem + '.png'))
             print('\nWriting image to {}'.format(out_file))
             cv2.imwrite(out_file, tri_out)
+    
     cv2.destroyAllWindows()
     vs.cleanup()
 
@@ -169,7 +182,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--output_dir', type=str, default=None,
         help='Directory where to write output frames (If None, no output)')
-
+    parser.add_argument(
+        '--text_output_dir', type=str, default=None,
+        help='Directory where to write output text file (If None, no output)')
     parser.add_argument(
         '--image_glob', type=str, nargs='+', default=['*.png', '*.jpg', '*.jpeg'],
         help='Glob if a directory of images is specified')
