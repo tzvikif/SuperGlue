@@ -570,7 +570,7 @@ def create_triangles(image0,
                     matching12,
                     matching20,
                     margin=10):
-    LINES = 1
+    LINES = 5
     H2, W2 = 0,0
     DEBUG_PRINT = False
     H0, W0 = image0.shape
@@ -615,10 +615,16 @@ def create_triangles(image0,
     H_dogman_1_2 = np.array([[0.49838, -0.015725 ,33.278],
                     [-0.18045, 0.77392, 59.799],
                     [-0.00064863, -4.2793e-05, 0.99978]])
+    H_dogman_1_5 = np.array([[0.31269 ,-0.011782 ,51.842],
+                    [-0.22276 ,0.71181 ,65.24],
+                    [-0.00081452 ,-4.173e-05 ,0.99309]])
+    H_apprentices_1_4 = np.array([[0.3794, 0.089822 ,49.168],
+                    [-0.27745, 0.88349, -5.6379],
+                    [-0.00046319, 5.6849e-05 ,0.99886]])
     H_fest_4_1 = np.linalg.inv(H_fest_1_4)
     #H_fest_4_6 = np.matmul(H_fest_1_6,H_fest_4_1)
     H_fest_4_6 = np.matmul(H_fest_4_1,H_fest_1_6)
-    a = warp(kpts01_0,H_fest_1_2)
+    a = warp(kpts01_0,H_dogman_1_5)
 
     for START_KEY_POINT in range(len(kpts01_0)):
         matches01 = list()
@@ -678,11 +684,16 @@ def create_triangles(image0,
     return triangles_per_match,a
 def write_to_file(text_list,file_dest):
     with open(file_dest,'w',encoding='utf-8') as f:
+        #title
+        f.write('index , score, avg, score_wo_skinhorn, image0 kpts, image1 kpts, warped image1 kpts\n')
         for d in text_list:
-            f.write(f"{d['idx']},{d['score01']}, ({d['image0_kpt'][0]},{d['image0_kpt'][1]}), ")
+            f.write(f"{d['idx']}, ")
+            f.write(f"{d['score01']}, ")
+            f.write(f"{d['avg']}, ")
+            f.write(f"{d['score01_wo_skinhorn']},  ")
+            f.write(f"({d['image0_kpt'][0]},{d['image0_kpt'][1]}), ")
             f.write(f"({d['image1_kpt'][0]},{d['image1_kpt'][1]}), ")
             f.write(f"({d['warped_image1_kpt'][0]},{d['warped_image1_kpt'][1]})\n")
-
 def draw_triangles(image0,
                     image1,
                     image2,
@@ -715,8 +726,13 @@ def draw_triangles(image0,
     #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
     ls = np.linspace(0.1,0.9,5)
     text_matches = list()
+    has_matches = False
     for match_idx,match in enumerate(matches):
+        has_matches = True
         avg_score = match['score12_20']**(1.0/2.0)
+        score01_rounded = round(np.asscalar(match['score01'].numpy()),2)
+        avg_score_rounded = round(np.asscalar(avg_score.numpy()),2)
+        score_wo_skinhon_rounded = round(np.asscalar(match['score01_wo_skinhorn'].numpy()),2)
         idx_kpt = match['image0_kpt_idx']
         colors = cm.jet(ls)
         color = colors[match_idx]
@@ -727,16 +743,15 @@ def draw_triangles(image0,
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
         print('-'*20)
-        score01 = round(np.asscalar(match['score01'].numpy()),2)
-        if score01 < 0.5:
-            continue
-        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01}')
+        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01_rounded}')
         warped_x1 = int(warped_kpts[idx_kpt,0])
         warped_y1 = int(warped_kpts[idx_kpt,1])
         print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
         d = {'image0_kpt':(x0,y0),'image1_kpt':(x1,y1),
         'idx':KEY_POINT,'warped_image1_kpt':(warped_x1,warped_y1),
-        'score01':round(np.asscalar(match['score01'].numpy()),2)}
+        'score01':score01_rounded,
+        'avg':avg_score_rounded,
+        'score01_wo_skinhorn':score_wo_skinhon_rounded}
         text_matches.append(d)
         red = (0, 30, 250)
         cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
@@ -757,9 +772,9 @@ def draw_triangles(image0,
         txt_color_fg = c
         txt_color_bg = (0, 0, 0)
         C = 200
-        avg_score_text = str(round(np.asscalar(avg_score.numpy()),2))
-        orig_score_text = str(round(np.asscalar(match['score01'].numpy()),2))
-        wo_skinhorn_score_text = str(round(np.asscalar(match['score01_wo_skinhorn'].numpy()),2))
+        avg_score_text = str(avg_score_rounded)
+        orig_score_text = str(score01_rounded)
+        wo_skinhorn_score_text = str(score_wo_skinhon_rounded)
         for text_idx, t in enumerate(orig_score_text):
             cv2.putText(out, t, (int(13*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
@@ -786,10 +801,12 @@ def draw_triangles(image0,
                         1.0*sc, txt_color_bg, 2, cv2.LINE_AA)
             cv2.putText(out, t, (int(12*(sc+text_idx)), C+Ht), cv2.FONT_HERSHEY_DUPLEX,
                         1.0*sc, txt_color_fg, 1, cv2.LINE_AA)
+    if has_matches == False:
+        out = None
     return out,text_matches
 
 def warp(source_image_kpts,H):
-    H_t = np.transpose(H,(1,0))
+    #H_t = np.transpose(H,(1,0))
     row_size = source_image_kpts.shape[0]
     source_image_kpts_homogenous = np.append(source_image_kpts,np.ones((row_size,1)),axis=1)
     source_image_kpts_homogenous_t = np.transpose(source_image_kpts_homogenous,(1,0))
