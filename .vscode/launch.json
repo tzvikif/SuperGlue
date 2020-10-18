@@ -12,15 +12,14 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": ["--input",
-                "fest/",
+                "dogman/",
                 "--output_dir",
-                "/Users/tzvikif/OneDrive - University of Haifa/fest456_dump_demo_sequence",
+                "/Users/tzvikif/OneDrive - University of Haifa/dogman125_dump_demo_sequence_HD",
                 "--text_output_dir",
                 "text_output/",
-                "--resize", "320", "240",
                 "--no_display",
                 "--superglue",
-                "indoor"]
+                "outdoor"]
         }
 
         
