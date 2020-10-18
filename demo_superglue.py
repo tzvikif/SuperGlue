@@ -155,8 +155,10 @@ def ex1(vs,opt):
     for idx,kpt_idx in enumerate(kpts_perm):
         #tri_out,text_matches = draw_triangles(image0,image2,image1,
         #matching02,matching21,matching10,for_kpt=kpt_idx)
-        tri_out,text_matches = draw_triangles(image0,image1,image2,
-        matching01,matching12,matching20,for_kpt=kpt_idx)
+        tri_out,text_matches = draw_triangles(image0,image2,image1,
+        matching02,matching21,matching10,for_kpt=kpt_idx)
+        if tri_out is None:
+            continue
         text.extend(text_matches)
         if opt.text_output_dir is not None:
             text_out_file_path = str(Path(opt.text_output_dir, 'kpts.txt'))
