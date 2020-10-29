@@ -57,12 +57,15 @@ from models.utils import (AverageTimer, VideoStreamer,
                           make_matching_plot_one_to_many,
                           create_triangles,
                           draw_triangles,
-                          write_to_file)
+                          write_to_file,
+                          test_image,
+                          write_warped_kpts,
+                          warp)
 
 torch.set_grad_enabled(False)
 # create a folder with same many samples.
 # each sample consist of 3 images. every sample has different START_KPTS 
-def ex1(vs,opt):
+def ex1(vs):
     frame, ret = vs.next_frame()
     assert ret, 'Error when reading the first frame (try different --input?)'
     #superpoint image0
@@ -150,15 +153,28 @@ def ex1(vs,opt):
     'full_scores':full_scores12.transpose(2,1),
     'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
     kpts_perm = np.random.permutation(len(kpts01_0))
-    text = list()
-    #text_file_path = 'text_output/kpts.txt'
+    tris = create_triangles(image0,image1,image2,matching01,matching12,matching20)
+    H_dogman_1_2 = np.array([[0.49838, -0.015725 ,33.278],
+                    [-0.18045, 0.77392, 59.799],
+                    [-0.00064863, -4.2793e-05, 0.99978]])
+    H_gardends_1_2 = np.array([[2.2787, 0.023843, -30.321],
+                    [0.58793, 1.9158, -459.28],
+                    [0.0012782 ,-6.6868e-06 ,0.99971]])
+    x_scale = 640.0/1126 
+    y_scale = 480.0/845
+    l_scale = np.array([[1/x_scale,0,0],
+                    [0,1/y_scale,0],
+                    [0,0,1]],dtype=float)
+    r_scale = np.array([[x_scale,0,0],
+                    [0,y_scale,0],
+                    [0,0,1]],dtype=float)
+    H = np.matmul(H_gardends_1_2,l_scale)
+    H = np.matmul(r_scale,H)
+    warped_kpts = warp(kpts01_0,H)
+    #write_warped_kpts(kpts01_0,warped_kpts,Path(opt.text_output_dir, 'warped_kpts.txt'))
     for idx,kpt_idx in enumerate(kpts_perm):
-        #tri_out,text_matches = draw_triangles(image0,image2,image1,
-        #matching02,matching21,matching10,for_kpt=kpt_idx)
-        tri_out,text_matches = draw_triangles(image0,image2,image1,
-        matching02,matching21,matching10,for_kpt=kpt_idx)
-        if tri_out is None:
-            continue
+        text = list()
+        tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2)
         text.extend(text_matches)
         if opt.text_output_dir is not None:
             text_out_file_path = str(Path(opt.text_output_dir, 'kpts.txt'))
@@ -167,8 +183,10 @@ def ex1(vs,opt):
             #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
             stem = f'matches_{kpt_idx}'
             out_file = str(Path(opt.output_dir, stem + '.png'))
+            out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
             print('\nWriting image to {}'.format(out_file))
             cv2.imwrite(out_file, tri_out)
+            #cv2.imwrite(out_file_test, out_test)
     
     cv2.destroyAllWindows()
     vs.cleanup()
@@ -270,7 +288,15 @@ if __name__ == '__main__':
     # 1.
     # create a folder with same many samples.
     # each sample consist of 3 images. every sample has different START_KPTS 
-    ex1(vs,opt)
+    '''
+    frame, ret = vs.next_frame()
+    frame_tensor = frame2tensor(frame, device)
+    point = np.array([124,178])
+    out_test = test_image(frame_tensor[0],point)
+    out_file_test = str(Path(opt.output_dir,  'test.png'))
+    cv2.imwrite(out_file_test, out_test)
+    '''
+    ex1(vs)
     # 2. check accuracy with H matrix.
     '''
     frame, ret = vs.next_frame()
