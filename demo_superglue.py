@@ -178,8 +178,7 @@ def scale_H(H,orig_image_size,new_image_size):
     H = np.matmul(r_scale,H)
     return H
 
-def ex1(vs,H,output_path):
-    params = init_params(vs)
+def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
     image0 = params['image0']
     image1 = params['image1']
     image2 = params['image2']
@@ -193,13 +192,11 @@ def ex1(vs,H,output_path):
     indices01_0 = params['indices01_0']
 
     kpts_perm = np.random.permutation(len(kpts01_0))
-    tris = create_triangles(image0,image2,image1,matching02,matching21,matching10)
-    H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
-    warped_kpts = warp(kpts01_0,H)
+    
     dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=indices01_0)
     for idx,kpt_idx in enumerate(kpts_perm):
         text = list()
-        kpt_idx = 528
+        #kpt_idx = 528
         if idx == 3:
             break
         tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image0,image2,image1)
@@ -322,10 +319,18 @@ if __name__ == '__main__':
                        opt.image_glob, max_length=3)
         file_name = [file for file in os.listdir(sub_dir) if file[0]=='H']
         file_name = file_name[0]
+        params = init_params(vs)
         H = load_H(os.path.join(sub_dir,file_name))
+        H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
         output_path = Path(os.path.join(opt.output_dir,sub_dir))
-        dist,cnt = ex1(vs,H,str(output_path))
+        kpts01_0 = params['matching01']['kpts_s']
+        warped_kpts = warp(kpts01_0,H)
+        tris = create_triangles(params['image0'],params['image2'],params['image1'],
+        params['matching02'],params['matching21'],params['matching10'])
+        draw_images(params,H,warped_kpts,tris,output_path)
+        dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=params['indices01_0'])
         total_dist+= dist
         total_cnt+= cnt
-    output = f'avg err:{total_dist/total_cnt} avg err after correction:' 
+    output = f'avg err:{total_dist/total_cnt}:' 
+    print(output)
     
