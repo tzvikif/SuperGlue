@@ -68,7 +68,7 @@ from models.utils import (AverageTimer, VideoStreamer,
 torch.set_grad_enabled(False)
 # create a folder with same many samples.
 # each sample consist of 3 images. every sample has different START_KPTS 
-def ex1(vs,H,output_path):
+def init_params(vs):
     frame, ret,(orig_image_w,orig_image_h) = vs.next_frame()
     assert ret, 'Error when reading the first frame (try different --input?)'
     #superpoint image0
@@ -155,9 +155,17 @@ def ex1(vs,H,output_path):
     matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
     'full_scores':full_scores12.transpose(2,1),
     'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
-    kpts_perm = np.random.permutation(len(kpts01_0))
-    tris = create_triangles(image0,image2,image1,matching02,matching21,matching10)
-    new_image_w,new_image_h = opt.resize
+    return {'matching01':matching01,'matching10':matching10,
+     'matching12':matching12,'matching21':matching21,
+     'matching20':matching20,'matching02':matching02,
+     'image0':image0,'image1':image1,'image2':image2,
+     'orig_image_w':orig_image_w,'orig_image_h':orig_image_h,
+     'indices01_0':indices01_0}
+def scale_H(H,orig_image_size,new_image_size):
+    orig_image_w = orig_image_size[0]
+    orig_image_h = orig_image_size[1]
+    new_image_w = new_image_size[0]
+    new_image_h = new_image_size[1]
     x_scale = new_image_w/orig_image_w 
     y_scale = new_image_h/orig_image_h
     l_scale = np.array([[1/x_scale,0,0],
@@ -168,10 +176,30 @@ def ex1(vs,H,output_path):
                     [0,0,1]],dtype=float)
     H = np.matmul(H,l_scale)
     H = np.matmul(r_scale,H)
+    return H
+
+def ex1(vs,H,output_path):
+    params = init_params(vs)
+    image0 = params['image0']
+    image1 = params['image1']
+    image2 = params['image2']
+    matching01 = params['matching01']
+    matching10 = params['matching10']
+    matching12 = params['matching12']
+    matching21 = params['matching21']
+    matching20 = params['matching20']
+    matching02 = params['matching02']
+    kpts01_0 = params['matching01']['kpts_s']
+    indices01_0 = params['indices01_0']
+
+    kpts_perm = np.random.permutation(len(kpts01_0))
+    tris = create_triangles(image0,image2,image1,matching02,matching21,matching10)
+    H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
     warped_kpts = warp(kpts01_0,H)
     dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=indices01_0)
     for idx,kpt_idx in enumerate(kpts_perm):
         text = list()
+        kpt_idx = 528
         if idx == 3:
             break
         tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image0,image2,image1)
@@ -294,11 +322,10 @@ if __name__ == '__main__':
                        opt.image_glob, max_length=3)
         file_name = [file for file in os.listdir(sub_dir) if file[0]=='H']
         file_name = file_name[0]
-        #os.chdir(sub_dir)
         H = load_H(os.path.join(sub_dir,file_name))
         output_path = Path(os.path.join(opt.output_dir,sub_dir))
         dist,cnt = ex1(vs,H,str(output_path))
         total_dist+= dist
-        total_cnt+= total_cnt
+        total_cnt+= cnt
     output = f'avg err:{total_dist/total_cnt} avg err after correction:' 
     

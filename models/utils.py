@@ -564,6 +564,7 @@ class Cell():
         self.l.append(item)
 def sortCell(val):
     return val['total_score']
+
 def create_triangles(image0,
                     image1,
                     image2,
