@@ -173,7 +173,7 @@ class VideoStreamer:
         w_new, h_new = process_resize(w, h, self.resize)
         grayim = cv2.resize(
             grayim, (w_new, h_new), interpolation=self.interp)
-        return grayim
+        return grayim,(w,h)
 
     def next_frame(self):
         """ Return the next frame, and increment internal counter.
@@ -209,9 +209,9 @@ class VideoStreamer:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         else:
             image_file = str(self.listing[self.i])
-            image = self.load_image(image_file)
+            image,(w,h) = self.load_image(image_file)
         self.i = self.i + 1
-        return (image, True)
+        return (image, True,(w,h))
 
     def start_ip_camera_thread(self):
         self._ip_thread = Thread(target=self.update_ip_camera, args=())
@@ -608,12 +608,11 @@ def create_triangles(image0,
         #01
         (x0, y0) = kpts01_0[START_KEY_POINT]
         red = (0, 30, 250)
-        cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
+        #cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
         scores01 = scores01_orig[0,START_KEY_POINT,:]   #score01 for enire START_KEY_POINT row
         scores01_wo_sinkhorn = scores01_wo_sinkhorn_orig[0,START_KEY_POINT,:]
         index_sorted_scores01 = scores01.argsort()
         t = index_sorted_scores01.numpy()
-        #t = t[::-1].copy()
         index_sorted_scores01 = torch.from_numpy(t)[-1-LINES+1:]    #choosing the last #LINES scores 
         sorted_scores01 = scores01[index_sorted_scores01]
         sorted_scores01_wo_sinkhorn = scores01_wo_sinkhorn[index_sorted_scores01]
@@ -657,16 +656,17 @@ def create_triangles(image0,
             cnt = 0
             print('-'*20)
     return triangles_per_match
-def test_image(image,warped_kpt):
-    red = (0, 30, 250)
-    (x0,y0) = (np.int(warped_kpt[0]),np.int(warped_kpt[1]))
-    H = image.shape[0]
-    W = image.shape[1]
-    out = np.ones((H, W), np.uint8)
-    out = image
-    out = np.stack([out]*3, -1)
-    cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-    return out
+def avg_dist(triangles,warped_kpts,valid_indices):
+    dist = 0.0
+    cnt = 0
+    for i,routs in enumerate(triangles):
+        if valid_indices[i] == -1:
+            continue
+        best_match = routs.l[-1]  #last one ist the best
+        kpt = best_match['image1_kpt']
+        dist +=  np.sqrt(np.dot(kpt-warped_kpts[i],kpt-warped_kpts[i]))
+        cnt+=1
+    return dist,cnt
 def write_warped_kpts(kpts,warped_kpts,file_dest):
     with open(file_dest,'w',encoding='utf-8') as f:
         for kpt,warped_kpt in zip(kpts,warped_kpts):
@@ -685,6 +685,16 @@ def write_to_file(text_list,file_dest):
             f.write(f"{d['image0_kpt'][0]},{d['image0_kpt'][1]}, ")
             f.write(f"{d['image1_kpt'][0]},{d['image1_kpt'][1]}, ")
             f.write(f"{d['warped_image1_kpt'][0]},{d['warped_image1_kpt'][1]}\n")
+def load_H(file_name):
+    with open(file_name,'r',encoding='utf-8') as f:
+        H = np.empty((0,3),dtype=float)
+        for line in f:
+            row_txt = line.split(' ')
+            row = [float(item) for item in row_txt]
+            row = np.array(row)
+            row = np.reshape(row,[1,3])
+            H = np.append(H,row,axis=0)
+    return H
 def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
     KEY_POINT = kpt_idx
     cell = tris[KEY_POINT]

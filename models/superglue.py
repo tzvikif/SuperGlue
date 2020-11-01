@@ -277,8 +277,8 @@ class SuperGlue(nn.Module):
         indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
 
         return {
-            'matches0': indices0, # use -1 for invalid match
-            'matches1': indices1, # use -1 for invalid match
+            'indices0': indices0, # use -1 for invalid match
+            'indices1': indices1, # use -1 for invalid match
             'matching_scores0': mscores0,
             'matching_scores1': mscores1,
             'full_scores':full_scores,
