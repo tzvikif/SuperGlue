@@ -564,7 +564,19 @@ class Cell():
         self.l.append(item)
 def sortCell(val):
     return val['total_score']
-
+def calcScores(tris,scores,valid_indices):
+    all_new_scores = list()
+    for t,s,v in zip(tris,scores,valid_indices):
+        new_scores = torch.full_like(s,0.0)
+        for i,match in enumerate(t):
+            if v[i] == -1:
+                continue
+            for triangle in match.l:
+                avg_score = triangle['score12_20']**(1.0/2.0)
+                image1_kpt_idx = triangle['image1_kpt_idx']
+                new_scores[0,i,image1_kpt_idx] = avg_score
+        all_new_scores.append(new_scores)
+    return all_new_scores
 def create_triangles(image0,
                     image1,
                     image2,
@@ -728,11 +740,11 @@ def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
         (x1,y1) = match['image1_kpt']
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
-        print('-'*20)
-        print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01_rounded}')
+        #print('-'*20)
+        #print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01_rounded}')
         warped_x1 = int(warped_kpts[idx_kpt,0])
         warped_y1 = int(warped_kpts[idx_kpt,1])
-        print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
+        #print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
         d = {'image0_kpt':(x0,y0),'image1_kpt':(x1,y1),
         'idx':KEY_POINT,'warped_image1_kpt':(warped_x1,warped_y1),
         'score01':score01_rounded,

@@ -63,7 +63,8 @@ from models.utils import (AverageTimer, VideoStreamer,
                           write_warped_kpts,
                           warp,
                           load_H,
-                          avg_dist)
+                          avg_dist,
+                          calcScores)
 
 torch.set_grad_enabled(False)
 # create a folder with same many samples.
@@ -209,13 +210,44 @@ def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
             stem = f'matches_{kpt_idx}'
             out_file = str(Path(output_path, stem + '.png'))
             out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
-            print('\nWriting image to {}'.format(out_file))
+            #print('\nWriting image to {}'.format(out_file))
             cv2.imwrite(out_file, tri_out)
-    
-    cv2.destroyAllWindows()
-    vs.cleanup()
+        cv2.destroyAllWindows()
     return dist,cnt
-
+def evalError(new_params):
+    root_dir = opt.input
+    sub_dirs = os.listdir(root_dir)
+    os.chdir(root_dir)
+    total_dist,total_cnt = 0.0,0.0
+    tris_list = list()
+    params_list = list()
+    sub_dirs = [sd for sd in sub_dirs if sd[0]!='.']
+    for i,sub_dir in enumerate(sub_dirs):
+        vs = VideoStreamer(sub_dir+'/', opt.resize, opt.skip,
+                    opt.image_glob, max_length=3)
+        file_name = [file for file in os.listdir(sub_dir) if file[0]=='H']
+        file_name = file_name[0]
+        if new_params == None:
+            params = init_params(vs)
+        else:
+            params = new_params[i]
+        H = load_H(os.path.join(sub_dir,file_name))
+        H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
+        output_path = Path(os.path.join(opt.output_dir,sub_dir))
+        kpts01_0 = params['matching01']['kpts_s']
+        warped_kpts = warp(kpts01_0,H)
+        tris = create_triangles(params['image0'],params['image2'],params['image1'],
+        params['matching02'],params['matching21'],params['matching10'])
+        tris_list.append(tris)
+        params_list.append(params)
+        draw_images(params,H,warped_kpts,tris,output_path)
+        valid_indices = params['indices01_0']
+        dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
+        total_dist+= dist
+        total_cnt+= cnt
+    vs.cleanup()
+    os.chdir('..')
+    return params_list,tris_list,total_dist/total_cnt
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='SuperGlue demo',
@@ -307,30 +339,18 @@ if __name__ == '__main__':
     }
     matching = Matching(config).eval().to(device)
     keys = ['keypoints', 'scores', 'descriptors']
-
-    root_dir = opt.input
-    sub_dirs = os.listdir(root_dir)
-    os.chdir(root_dir)
-    total_dist,total_cnt = 0.0,0.0
-    for sub_dir in sub_dirs:
-        if sub_dir[0] == '.':
-            continue
-        vs = VideoStreamer(sub_dir+'/', opt.resize, opt.skip,
-                       opt.image_glob, max_length=3)
-        file_name = [file for file in os.listdir(sub_dir) if file[0]=='H']
-        file_name = file_name[0]
-        params = init_params(vs)
-        H = load_H(os.path.join(sub_dir,file_name))
-        H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
-        output_path = Path(os.path.join(opt.output_dir,sub_dir))
-        kpts01_0 = params['matching01']['kpts_s']
-        warped_kpts = warp(kpts01_0,H)
-        tris = create_triangles(params['image0'],params['image2'],params['image1'],
-        params['matching02'],params['matching21'],params['matching10'])
-        draw_images(params,H,warped_kpts,tris,output_path)
-        dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=params['indices01_0'])
-        total_dist+= dist
-        total_cnt+= cnt
-    output = f'avg err:{total_dist/total_cnt}:' 
+    orig_params_list,tris_list,error1 = evalError(None)
+    valid_indices_list = [x['indices01_0'] for x in orig_params_list]
+    full_scores_list = [x['matching01']['full_scores'] for x in orig_params_list]
+    output = f'error1:{error1}:' 
     print(output)
+    new_scores_list = calcScores(tris_list,full_scores_list,valid_indices_list)
+    #update params with new scores
+    params = orig_params_list.copy()
+    for i,new_scores in enumerate(new_scores_list):
+        params[i]['matching01']['full_scores'] = new_scores
+    params,tris,error2 = evalError(params)
+    output = f'error2:{error2}:' 
+    print(output)
+
     
