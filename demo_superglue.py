@@ -119,7 +119,7 @@ def init_params(vs):
     kpts12_1 = data1['keypoints1'][0].cpu().numpy()
     kpts12_2 = data2['keypoints0'][0].cpu().numpy()
     #indices01_1 = pred21['indices1'][0].cpu().numpy()
-    confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
+    #confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
     full_scores12 = torch.transpose(pred21['full_scores'],2,1)
     full_scores12_wo_sinkhorn = torch.transpose(pred21['full_scores_wo_sinkhon'],2,1)
     #20
@@ -341,14 +341,14 @@ if __name__ == '__main__':
     keys = ['keypoints', 'scores', 'descriptors']
     orig_params_list,tris_list,error1 = evalError(None)
     valid_indices_list = [x['indices01_0'] for x in orig_params_list]
-    full_scores_list = [x['matching01']['full_scores'] for x in orig_params_list]
+    full_scores_list = [x['matching02']['full_scores'] for x in orig_params_list]
     output = f'error1:{error1}:' 
     print(output)
     new_scores_list = calcScores(tris_list,full_scores_list,valid_indices_list)
     #update params with new scores
     params = orig_params_list.copy()
     for i,new_scores in enumerate(new_scores_list):
-        params[i]['matching01']['full_scores'] = new_scores
+        params[i]['matching02']['full_scores'] = new_scores
     params,tris,error2 = evalError(params)
     output = f'error2:{error2}:' 
     print(output)
