@@ -566,17 +566,23 @@ def sortCell(val):
     return val['total_score']
 def calcScores(tris,scores,valid_indices):
     all_new_scores = list()
+    all_new_scores_sh = list()
     for t,s,v in zip(tris,scores,valid_indices):
         new_scores = torch.full_like(s,0.0)
+        new_scores_sh = torch.full_like(s,0.0)
         for i,match in enumerate(t):
             if v[i] == -1:
                 continue
             for triangle in match.l:
                 avg_score = triangle['score12_20']**(1.0/2.0)
+                avg_score_sh = triangle['score12_20_sh']
                 image1_kpt_idx = triangle['image1_kpt_idx']
-                new_scores[0,i,image1_kpt_idx] = avg_score
+                orig_score = triangle['score01']
+                new_scores[0,i,image1_kpt_idx] = np.sqrt(avg_score*orig_score)
+                new_scores_sh[0,i,image1_kpt_idx] = avg_score_sh
         all_new_scores.append(new_scores)
-    return all_new_scores
+        all_new_scores_sh.append(new_scores_sh)
+    return all_new_scores,all_new_scores_sh
 def create_triangles(image0,
                     image1,
                     image2,
@@ -601,6 +607,8 @@ def create_triangles(image0,
     scores20_orig = matching20['full_scores']
     scores12_orig = matching12['full_scores']
     scores01_wo_sinkhorn_orig = matching01['full_scores_wo_sinkhorn']
+    scores12_wo_sinkhorn_orig = matching12['full_scores_wo_sinkhorn']
+    scores20_wo_sinkhorn_orig = matching20['full_scores_wo_sinkhorn']
     kpts01_0 = matching01['kpts_s']
     kpts01_1 = matching01['kpts_d']
     kpts20_0 = matching20['kpts_d']
@@ -648,17 +656,25 @@ def create_triangles(image0,
             for kpt_idx_image2,kpt_image2 in enumerate(kpts12_2):
                 #score12
                 score12 = scores12_orig[0,idx_kpt_image1,kpt_idx_image2]
+                score12_sh = scores12_wo_sinkhorn_orig[0,idx_kpt_image1,kpt_idx_image2]
                 #score20
                 score20 = scores20_orig[0,kpt_idx_image2,idx_kpt_image0]
+                score20_sh = scores20_wo_sinkhorn_orig[0,kpt_idx_image2,idx_kpt_image0]
                 if max_score < score12*score20:
                     max_score = score12*score20
+                    max_score_sh = score12_sh*score20_sh
                     max_score12 = score12
+                    max_score12_sh = score12_sh
                     max_kpt_idx_image2 = kpt_idx_image2
                     max_score20 = score20
+                    max_score20_sh = score20_sh
             match['image2_kpt'] = kpts12_2[max_kpt_idx_image2]
             match['score12'] = max_score12
             match['score20'] = max_score20
             match['score12_20'] = max_score12*max_score20
+            match['score12_20_sh'] = max_score12_sh*max_score20_sh
+            match['score12_sh'] = max_score12_sh
+            match['score20_sh'] = max_score20_sh
             #save largest score
             top_matches.append(match)
         triangles_per_match[match['image0_kpt_idx']] = top_matches

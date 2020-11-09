@@ -52,6 +52,7 @@ import torch
 import numpy as np
 import os
 from pathlib import Path
+import copy
 
 from models.matching import Matching
 from models.utils import (AverageTimer, VideoStreamer,
@@ -339,18 +340,28 @@ if __name__ == '__main__':
     }
     matching = Matching(config).eval().to(device)
     keys = ['keypoints', 'scores', 'descriptors']
-    orig_params_list,tris_list,error1 = evalError(None)
+    orig_params_list,tris_list,base_error = evalError(None)
     valid_indices_list = [x['indices01_0'] for x in orig_params_list]
     full_scores_list = [x['matching02']['full_scores'] for x in orig_params_list]
-    output = f'error1:{error1}:' 
+    output = f'base error:{base_error}:' 
     print(output)
-    new_scores_list = calcScores(tris_list,full_scores_list,valid_indices_list)
+    new_scores_list,new_scores_sh_list = calcScores(tris_list,full_scores_list,valid_indices_list)
     #update params with new scores
-    params = orig_params_list.copy()
-    for i,new_scores in enumerate(new_scores_list):
-        params[i]['matching02']['full_scores'] = new_scores
-    params,tris,error2 = evalError(params)
-    output = f'error2:{error2}:' 
-    print(output)
+    params1 = copy.deepcopy(orig_params_list)
+    params2 = copy.deepcopy(orig_params_list)
+    sg = matching.superglue
+    for i,(new_scores,new_scores_sh) in enumerate(zip(new_scores_list,new_scores_sh_list)):
+        params1[i]['matching02']['full_scores'] = new_scores
+        #params2[i]['matching02']['full_scores'] = sg.sh(new_scores_sh) runtime error
+    params1,tris1,error1 = evalError(params1)
+    #param2,tris2,error2 = evalError(params2)
+    print(f'error1:{error1}')
+    #print(f'error2:{error2}')
+    
+
+
+
+
+
 
     

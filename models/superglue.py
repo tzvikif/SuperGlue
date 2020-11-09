@@ -224,6 +224,34 @@ class SuperGlue(nn.Module):
         self.load_state_dict(torch.load(str(path)))
         print('Loaded SuperGlue model (\"{}\" weights)'.format(
             self.config['weights']))
+    def sh(self,new_full_scores_sh):
+        # Run the optimal transport.
+        scores = log_optimal_transport(
+            new_full_scores_sh, self.bin_score,
+            iters=self.config['sinkhorn_iterations'])
+        full_scores = scores[:,:-1,:-1]
+        full_scores = full_scores.exp()
+        # Get the matches with score above "match_threshold".
+        max0, max1 = scores[:, :-1, :-1].max(2), scores[:, :-1, :-1].max(1)
+        indices0, indices1 = max0.indices, max1.indices
+        mutual0 = arange_like(indices0, 1)[None] == indices1.gather(1, indices0)
+        mutual1 = arange_like(indices1, 1)[None] == indices0.gather(1, indices1)
+        zero = scores.new_tensor(0)
+        mscores0 = torch.where(mutual0, max0.values.exp(), zero)
+        mscores1 = torch.where(mutual1, mscores0.gather(1, indices1), zero)
+        valid0 = mutual0 & (mscores0 > self.config['match_threshold'])
+        valid1 = mutual1 & valid0.gather(1, indices1)
+        indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
+        indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
+
+        return {
+            'indices0': indices0, # use -1 for invalid match
+            'indices1': indices1, # use -1 for invalid match
+            'matching_scores0': mscores0,
+            'matching_scores1': mscores1,
+            'full_scores':full_scores,
+            'full_scores_wo_sinkhon':new_full_scores_sh
+        }
 
     def forward(self, data):
         """Run SuperGlue on a pair of keypoints and descriptors"""
