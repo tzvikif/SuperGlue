@@ -352,11 +352,12 @@ if __name__ == '__main__':
     sg = matching.superglue
     for i,(new_scores,new_scores_sh) in enumerate(zip(new_scores_list,new_scores_sh_list)):
         params1[i]['matching02']['full_scores'] = new_scores
-        #params2[i]['matching02']['full_scores'] = sg.sh(new_scores_sh) runtime error
+        a = sg.sh(new_scores_sh) 
+        params2[i]['matching02']['full_scores'] = a
     params1,tris1,error1 = evalError(params1)
-    #param2,tris2,error2 = evalError(params2)
+    param2,tris2,error2 = evalError(params2)
     print(f'error1:{error1}')
-    #print(f'error2:{error2}')
+    print(f'error2:{error2}')
     
 
 

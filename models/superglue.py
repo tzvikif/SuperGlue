@@ -244,14 +244,8 @@ class SuperGlue(nn.Module):
         indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
         indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
 
-        return {
-            'indices0': indices0, # use -1 for invalid match
-            'indices1': indices1, # use -1 for invalid match
-            'matching_scores0': mscores0,
-            'matching_scores1': mscores1,
-            'full_scores':full_scores,
-            'full_scores_wo_sinkhon':new_full_scores_sh
-        }
+        return full_scores
+        
 
     def forward(self, data):
         """Run SuperGlue on a pair of keypoints and descriptors"""
