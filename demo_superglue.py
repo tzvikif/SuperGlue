@@ -215,6 +215,36 @@ def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
             cv2.imwrite(out_file, tri_out)
         cv2.destroyAllWindows()
     return dist,cnt
+def draw_improved_images(params_orig,warped_kpts,tris_orig,params_imp1,params_imp2,tris_imp1,tris_imp2,output_path):
+    image0 = params['image0']
+    image1 = params['image1']
+    image2 = params['image2']
+    matching01_orig = params_orig['matching01']
+    matching01_imp1 = params_imp1['matching01']
+    matching01_imp2 = params_imp2['matching01']
+    kpts01_0 = params['matching01']['kpts_s']
+    indices01_0 = params['indices01_0']
+    for kpt_image0_idx in range(len(kpts01_0)):
+        max_idx_orig = np.max(matching01_orig[kpt_image0_idx] ,axis=1)
+        max_idx_imp1 = np.max(matching01_imp1[kpt_image0_idx] ,axis=1)
+        max_idx_imp2 = np.max(matching01_imp2[kpt_image0_idx] ,axis=1)
+
+        orig_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_orig]}
+        imp1_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_imp1]}
+        imp2_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_imp2]}
+        warped_kpt = warped_kpts[kpt_image0_idx]
+        if max_idx_orig != max_idx_imp1:
+            match_out = draw_match(image0,image1,orig_match,imp1_match,warped_kpt)
+            stem = f'matches1_{kpt_idx}'
+            out_file = str(Path(output_path, stem + '.png'))
+            out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
+            cv2.imwrite(out_file, match_out)
+        if max_idx_orig != max_idx_imp2:
+            out2 = draw_match(image0,image1,orig_match,imp2_match,warped_kpt)
+            stem = f'matches2_{kpt_idx}'
+            out_file = str(Path(output_path, stem + '.png'))
+            out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
+            cv2.imwrite(out_file, match_out)
 def evalError(new_params):
     root_dir = opt.input
     sub_dirs = os.listdir(root_dir)
@@ -241,7 +271,7 @@ def evalError(new_params):
         params['matching02'],params['matching21'],params['matching10'])
         tris_list.append(tris)
         params_list.append(params)
-        draw_images(params,H,warped_kpts,tris,output_path)
+        #draw_images(params,H,warped_kpts,tris,output_path)
         valid_indices = params['indices01_0']
         dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
         total_dist+= dist
