@@ -65,7 +65,8 @@ from models.utils import (AverageTimer, VideoStreamer,
                           warp,
                           load_H,
                           avg_dist,
-                          calcScores)
+                          calcScores,
+                          draw_match)
 
 torch.set_grad_enabled(False)
 # create a folder with same many samples.
@@ -215,36 +216,38 @@ def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
             cv2.imwrite(out_file, tri_out)
         cv2.destroyAllWindows()
     return dist,cnt
-def draw_improved_images(params_orig,warped_kpts,tris_orig,params_imp1,params_imp2,tris_imp1,tris_imp2,output_path):
-    image0 = params['image0']
-    image1 = params['image1']
-    image2 = params['image2']
-    matching01_orig = params_orig['matching01']
-    matching01_imp1 = params_imp1['matching01']
-    matching01_imp2 = params_imp2['matching01']
-    kpts01_0 = params['matching01']['kpts_s']
-    indices01_0 = params['indices01_0']
-    for kpt_image0_idx in range(len(kpts01_0)):
-        max_idx_orig = np.max(matching01_orig[kpt_image0_idx] ,axis=1)
-        max_idx_imp1 = np.max(matching01_imp1[kpt_image0_idx] ,axis=1)
-        max_idx_imp2 = np.max(matching01_imp2[kpt_image0_idx] ,axis=1)
+def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params_imp2_list,tris_imp1_list,tris_imp2_list,output_paths):
+    for params_orig,params_imp1,params_imp2,tris_orig,tris_imp1,tris_imp2,output_path in zip(params_orig_list,params_imp1_list,params_imp2_list,tris_orig_list,tris_imp1_list,tris_imp2_list,output_paths):
+        image0 = params_orig['image0']
+        image1 = params_orig['image1']
+        matching01_orig = params_orig['matching01']
+        matching01_imp1 = params_imp1['matching01']
+        matching01_imp2 = params_imp2['matching01']
+        kpts01_0 = params_orig['matching01']['kpts_s']
+        kpts01_1 = params_orig['matching01']['kpts_d']
+        indices01_0 = params_orig['indices01_0']
+        warped_kpts = params_orig['warped_kpts']
+        for kpt_image0_idx in range(len(kpts01_0)):
+            max_idx_orig = np.argmax(matching01_orig['full_scores'][0,kpt_image0_idx,:]).numpy()
+            max_idx_imp1 = np.argmax(matching01_imp1['full_scores'][0,kpt_image0_idx,:]).numpy()
+            max_idx_imp2 = np.argmax(matching01_imp2['full_scores'][0,kpt_image0_idx,:]).numpy()
 
-        orig_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_orig]}
-        imp1_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_imp1]}
-        imp2_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_0[max_idx_imp2]}
-        warped_kpt = warped_kpts[kpt_image0_idx]
-        if max_idx_orig != max_idx_imp1:
-            match_out = draw_match(image0,image1,orig_match,imp1_match,warped_kpt)
-            stem = f'matches1_{kpt_idx}'
-            out_file = str(Path(output_path, stem + '.png'))
-            out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
-            cv2.imwrite(out_file, match_out)
-        if max_idx_orig != max_idx_imp2:
-            out2 = draw_match(image0,image1,orig_match,imp2_match,warped_kpt)
-            stem = f'matches2_{kpt_idx}'
-            out_file = str(Path(output_path, stem + '.png'))
-            out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
-            cv2.imwrite(out_file, match_out)
+            orig_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_orig]}
+            imp1_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_imp1]}
+            imp2_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_imp2]}
+            warped_kpt = warped_kpts[kpt_image0_idx]
+            if max_idx_orig != max_idx_imp1:
+                match_out = draw_match(image0,image1,orig_match,imp1_match,warped_kpt)
+                stem = f'matches1_{kpt_idx}'
+                out_file = str(Path(output_path, stem + '.png'))
+                out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
+                cv2.imwrite(out_file, match_out)
+            if max_idx_orig != max_idx_imp2:
+                out2 = draw_match(image0,image1,orig_match,imp2_match,warped_kpt)
+                stem = f'matches2_{kpt_idx}'
+                out_file = str(Path(output_path, stem + '.png'))
+                out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
+                cv2.imwrite(out_file, match_out)
 def evalError(new_params):
     root_dir = opt.input
     sub_dirs = os.listdir(root_dir)
@@ -252,6 +255,8 @@ def evalError(new_params):
     total_dist,total_cnt = 0.0,0.0
     tris_list = list()
     params_list = list()
+    warped_kpts_list = list()
+    output_paths = list()
     sub_dirs = [sd for sd in sub_dirs if sd[0]!='.']
     for i,sub_dir in enumerate(sub_dirs):
         vs = VideoStreamer(sub_dir+'/', opt.resize, opt.skip,
@@ -265,20 +270,23 @@ def evalError(new_params):
         H = load_H(os.path.join(sub_dir,file_name))
         H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
         output_path = Path(os.path.join(opt.output_dir,sub_dir))
+        output_paths.append(output_path)
         kpts01_0 = params['matching01']['kpts_s']
         warped_kpts = warp(kpts01_0,H)
         tris = create_triangles(params['image0'],params['image2'],params['image1'],
         params['matching02'],params['matching21'],params['matching10'])
         tris_list.append(tris)
+        params['warped_kpts'] = warped_kpts
         params_list.append(params)
         #draw_images(params,H,warped_kpts,tris,output_path)
         valid_indices = params['indices01_0']
         dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
         total_dist+= dist
         total_cnt+= cnt
+        warped_kpts_list.append(warped_kpts)
     vs.cleanup()
     os.chdir('..')
-    return params_list,tris_list,total_dist/total_cnt
+    return params_list,tris_list,output_paths,total_dist/total_cnt
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='SuperGlue demo',
@@ -370,7 +378,7 @@ if __name__ == '__main__':
     }
     matching = Matching(config).eval().to(device)
     keys = ['keypoints', 'scores', 'descriptors']
-    orig_params_list,tris_list,base_error = evalError(None)
+    orig_params_list,tris_list,output_paths,base_error = evalError(None)
     valid_indices_list = [x['indices01_0'] for x in orig_params_list]
     full_scores_list = [x['matching02']['full_scores'] for x in orig_params_list]
     output = f'base error:{base_error}:' 
@@ -384,10 +392,11 @@ if __name__ == '__main__':
         params1[i]['matching02']['full_scores'] = new_scores
         a = sg.sh(new_scores_sh) 
         params2[i]['matching02']['full_scores'] = a
-    params1,tris1,error1 = evalError(params1)
-    param2,tris2,error2 = evalError(params2)
+    params1,tris1,_,error1 = evalError(params1)
+    param2,tris2,_,error2 = evalError(params2)
     print(f'error1:{error1}')
     print(f'error2:{error2}')
+    draw_improved_images(orig_params_list,tris_list,params1,params2,tris1,tris2,output_paths)
     
 
 

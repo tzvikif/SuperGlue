@@ -728,13 +728,10 @@ def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
     image0_kpt = orig_match['kpts0']
     orig_image1_kpt = orig_match['kpts1']
     imp_image1_kpt = imp_match['kpts1']
-    H0, W0 = image0.shape
-    H1, W1 = image1.shape
-    out = 255*np.ones((H*2, W*2), np.uint8)
-    out[:H0, :W0] = image0
-    out[:H0, W0:] = image1
-    out[H0:, :W0] = image0
-    out[H0:, :W0] = image1
+    H, W = image0.shape
+    out = 255*np.ones((H, W*2), np.uint8)
+    out[:H, :W] = image0
+    out[:H, :W] = image1
     out = np.stack([out]*3, -1)
 
     red = (0, 30, 250)
@@ -743,18 +740,16 @@ def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
     (x0,y0) = image0_kpt
     (warped_x1,warped_y1) = imp_image1_kpt
     cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-    cv2.circle(out, (x0, y0+H0), 3, red, -1, lineType=cv2.LINE_AA)
     (x1,y1) = orig_image1_kpt
     cv2.circle(out, (x1+W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
-    cv2.line(out, (x0, y0), (x1, y1),
+    cv2.line(out, (x0, y0), (x1+W0, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
-    cv2.circle(out, (warped_x1+W0, y0), 3, green, -1, lineType=cv2.LINE_AA)
+    cv2.circle(out, (warped_x1+W0, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
     (x1,y1) = imp_image1_kpt
-    cv2.circle(out, (x1+W0, y1+H0), 3, blue, -1, lineType=cv2.LINE_AA)
-    cv2.line(out, (x0, y0+H0), (x1+W0, y1+H0),
+    cv2.circle(out, (x1+W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
+    cv2.line(out, (x0, y00), (x1+W0, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
-    cv2.circle(out, (warped_x1+W0, y0+H0), 3, green, -1, lineType=cv2.LINE_AA)
-
+    return out
 def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
     KEY_POINT = kpt_idx
     cell = tris[KEY_POINT]
