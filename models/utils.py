@@ -574,11 +574,13 @@ def calcScores(tris,scores,valid_indices):
             if v[i] == -1:
                 continue
             for triangle in match.l:
-                avg_score = triangle['score12_20']**(1.0/2.0)
+                avg_score = triangle['score12_20']
                 avg_score_sh = triangle['score12_20_sh']
                 image1_kpt_idx = triangle['image1_kpt_idx']
                 orig_score = triangle['score01']
-                new_scores[0,i,image1_kpt_idx] = np.sqrt(avg_score*orig_score)
+                if i == 0 and image1_kpt_idx == 52:
+                    avg_score = 0.97
+                new_scores[0,i,image1_kpt_idx] = avg_score
                 new_scores_sh[0,i,image1_kpt_idx] = avg_score_sh
         all_new_scores.append(new_scores)
         all_new_scores_sh.append(new_scores_sh)
@@ -731,23 +733,23 @@ def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
     H, W = image0.shape
     out = 255*np.ones((H, W*2), np.uint8)
     out[:H, :W] = image0
-    out[:H, :W] = image1
+    out[:H, W:] = image1
     out = np.stack([out]*3, -1)
 
     red = (0, 30, 250)
     blue = (250,10,10)
     green = (10,250,10)
     (x0,y0) = image0_kpt
-    (warped_x1,warped_y1) = imp_image1_kpt
+    (warped_x1,warped_y1) = int(warped_kpt[0]),int(warped_kpt[1])
     cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-    (x1,y1) = orig_image1_kpt
-    cv2.circle(out, (x1+W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
-    cv2.line(out, (x0, y0), (x1+W0, y1),
+    (x1,y1) = int(orig_image1_kpt[0]),int(orig_image1_kpt[1])
+    cv2.circle(out, (x1+W, y1), 3, blue, -1, lineType=cv2.LINE_AA)
+    cv2.line(out, (x0, y0), (x1+W, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
-    cv2.circle(out, (warped_x1+W0, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
-    (x1,y1) = imp_image1_kpt
-    cv2.circle(out, (x1+W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
-    cv2.line(out, (x0, y00), (x1+W0, y1),
+    cv2.circle(out, (warped_x1+W, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
+    (x1,y1) = int(imp_image1_kpt[0]),int(imp_image1_kpt[1])
+    cv2.circle(out, (x1+W, y1), 3, red, -1, lineType=cv2.LINE_AA)
+    cv2.line(out, (x0, y0), (x1+W, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
     return out
 def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
