@@ -678,7 +678,7 @@ def create_triangles(image_s,   #source image
         triangles_per_match[match['image_s_kpt_idx']] = top_matches
         if DEBUG_PRINT:
             cnt+=1
-            print(f'{cnt}: image_s_kpt:{tri["image_s_kpt"]} image_d_kpt:{tri["image_d_kpt"]} image_a_kpt:{tri["image_a_kpt"]}')
+            print(f'{cnt}: image_s_kpt:{match["image_s_kpt"]} image_d_kpt:{match["image_d_kpt"]} image_a_kpt:{match["image_a_kpt"]}')
         if DEBUG_PRINT:
             cnt = 0
             print('-'*20)
