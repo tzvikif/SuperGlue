@@ -574,115 +574,111 @@ def calcScores(tris,scores,valid_indices):
             if v[i] == -1:
                 continue
             for triangle in match.l:
-                avg_score = triangle['score12_20']
-                avg_score_sh = triangle['score12_20_sh']
-                image1_kpt_idx = triangle['image1_kpt_idx']
-                orig_score = triangle['score01']
-                if i == 0 and image1_kpt_idx == 52:
+                avg_score = triangle['score_da_as']
+                avg_score_sh = triangle['score_da_as_sh']
+                image_d_kpt_idx = triangle['image_d_kpt_idx']
+                orig_score = triangle['score_sd']
+                if i == 0 and image_d_kpt_idx == 52:
                     avg_score = 0.97
-                new_scores[0,i,image1_kpt_idx] = avg_score
-                new_scores_sh[0,i,image1_kpt_idx] = avg_score_sh
+                new_scores[0,i,image_d_kpt_idx] = avg_score
+                new_scores_sh[0,i,image_d_kpt_idx] = avg_score_sh
         all_new_scores.append(new_scores)
         all_new_scores_sh.append(new_scores_sh)
     return all_new_scores,all_new_scores_sh
-def create_triangles(image0,
-                    image1,
-                    image2,
-                    matching01,
-                    matching12,
-                    matching20,
+def create_triangles(image_s,   #source image
+                    image_d,    #destination image
+                    image_a,    #aux image
+                    matching_sd,
+                    matching_da,
+                    matching_as,
                     margin=10):
     LINES = 5
     H2, W2 = 0,0
     DEBUG_PRINT = False
-    H0, W0 = image0.shape
-    H1, W1 = image1.shape
-    H2, W2 = image2.shape
+    H0, W0 = image_s.shape
+    H1, W1 = image_d.shape
+    H2, W2 = image_a.shape
     H, W = max(H0,H1)+H2, W0 + W1 + margin
     out = 255*np.ones((H, W), np.uint8)
-    out[:H0, :W0] = image0
-    out[:H1, W0+margin:] = image1
+    out[:H0, :W0] = image_s
+    out[:H1, W0+margin:] = image_d
     H2_margin_w = int((W-W2)/2)
-    out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
+    out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image_a
     out = np.stack([out]*3, -1)
-    scores01_orig = matching01['full_scores']
-    scores20_orig = matching20['full_scores']
-    scores12_orig = matching12['full_scores']
-    scores01_wo_sinkhorn_orig = matching01['full_scores_wo_sinkhorn']
-    scores12_wo_sinkhorn_orig = matching12['full_scores_wo_sinkhorn']
-    scores20_wo_sinkhorn_orig = matching20['full_scores_wo_sinkhorn']
-    kpts01_0 = matching01['kpts_s']
-    kpts01_1 = matching01['kpts_d']
-    kpts20_0 = matching20['kpts_d']
-    kpts20_2 = matching20['kpts_s']
-    kpts12_1 = matching12['kpts_s']
-    kpts12_2 = matching12['kpts_d']
-
+    scores_sd_orig = matching_sd['full_scores']
+    scores_as_orig = matching_as['full_scores']
+    scores_da_orig = matching_da['full_scores']
+    scores_sd_wo_sinkhorn_orig = matching_sd['full_scores_wo_sinkhorn']
+    scores_da_wo_sinkhorn_orig = matching_da['full_scores_wo_sinkhorn']
+    scores_as_wo_sinkhorn_orig = matching_as['full_scores_wo_sinkhorn']
+    kpts_s = matching_sd['kpts_s']
+    kpts_d = matching_sd['kpts_d']
+    kpts_a = matching_as['kpts_s']
+    
     COLOR_FACTOR = 2**(-4)
     
-    kpts01_0, kpts01_1 = np.round(kpts01_0).astype(int), np.round(kpts01_1).astype(int)
-    kpts20_0, kpts20_2 = np.round(kpts20_0).astype(int), np.round(kpts20_2).astype(int)
-    kpts12_1, kpts12_2 = np.round(kpts12_1).astype(int), np.round(kpts12_2).astype(int)
+    kpts_s, kpts_d = np.round(kpts_s).astype(int), np.round(kpts_d).astype(int)
+    kpts_a = np.round(kpts_a).astype(int)
     cnt = 0
-    triangles_per_match = np.full((kpts01_0.shape[0]),None)
+    triangles_per_match = np.full((kpts_s.shape[0]),None)
     match_total_score = list()
-    for START_KEY_POINT in range(len(kpts01_0)):
-        matches01 = list()
+    for START_KEY_POINT in range(len(kpts_s)):
+        matches_lr = list()
         #01
-        (x0, y0) = kpts01_0[START_KEY_POINT]
+        (x0, y0) = kpts_s[START_KEY_POINT]
         red = (0, 30, 250)
         #cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-        scores01 = scores01_orig[0,START_KEY_POINT,:]   #score01 for enire START_KEY_POINT row
-        scores01_wo_sinkhorn = scores01_wo_sinkhorn_orig[0,START_KEY_POINT,:]
-        index_sorted_scores01 = scores01.argsort()
-        t = index_sorted_scores01.numpy()
-        index_sorted_scores01 = torch.from_numpy(t)[-1-LINES+1:]    #choosing the last #LINES scores 
-        sorted_scores01 = scores01[index_sorted_scores01]
-        sorted_scores01_wo_sinkhorn = scores01_wo_sinkhorn[index_sorted_scores01]
-        sorted_kpts01_1 = kpts01_1[index_sorted_scores01]
-        for i,(score,score_wo_sinkhorn) in enumerate( zip(sorted_scores01,sorted_scores01_wo_sinkhorn) ):
+        scores_sd = scores_sd_orig[0,START_KEY_POINT,:]   #score_sd for enire START_KEY_POINT row
+        scores_sd_wo_sinkhorn = scores_sd_wo_sinkhorn_orig[0,START_KEY_POINT,:]
+        index_sorted_scores_sd = scores_sd.argsort()
+        t = index_sorted_scores_sd.numpy()
+        index_sorted_scores_sd = torch.from_numpy(t)[-1-LINES+1:]    #choosing the last #LINES scores 
+        sorted_scores_sd = scores_sd[index_sorted_scores_sd]
+        sorted_scores_sd_wo_sinkhorn = scores_sd_wo_sinkhorn[index_sorted_scores_sd]
+        sorted_kpts_d = kpts_d[index_sorted_scores_sd]
+        for i,(score,score_wo_sinkhorn) in enumerate( zip(sorted_scores_sd,sorted_scores_sd_wo_sinkhorn) ):
             if LINES == 1:
-                (x1,y1) = sorted_kpts01_1
+                (x1,y1) = sorted_kpts_d
             else:
-                (x1, y1) = sorted_kpts01_1[i]
-            matches01.append({'image0_kpt':(x0,y0),'score01':score,
-            'image1_kpt':(x1, y1),'image0_kpt_idx':START_KEY_POINT,
-            'image1_kpt_idx':index_sorted_scores01[i],
-            'score01_wo_skinhorn':score_wo_sinkhorn})
+                (x1, y1) = sorted_kpts_d[i]
+            matches_lr.append({'image_s_kpt':(x0,y0),'score_sd':score,
+            'image_d_kpt':(x1, y1),'image_s_kpt_idx':START_KEY_POINT,
+            'image_d_kpt_idx':index_sorted_scores_sd[i],
+            'score_sd_wo_skinhorn':score_wo_sinkhorn})
         #12
         top_matches = Cell(START_KEY_POINT)
-        for match in matches01:
+        for match in matches_lr:
             max_score = 0.0
-            idx_kpt_image1 = match['image1_kpt_idx']
-            idx_kpt_image0 = match['image0_kpt_idx']
-            for kpt_idx_image2,kpt_image2 in enumerate(kpts12_2):
-                #score12
-                score12 = scores12_orig[0,idx_kpt_image1,kpt_idx_image2]
-                score12_sh = scores12_wo_sinkhorn_orig[0,idx_kpt_image1,kpt_idx_image2]
-                #score20
-                score20 = scores20_orig[0,kpt_idx_image2,idx_kpt_image0]
-                score20_sh = scores20_wo_sinkhorn_orig[0,kpt_idx_image2,idx_kpt_image0]
-                if max_score < score12*score20:
-                    max_score = score12*score20
-                    max_score_sh = score12_sh*score20_sh
-                    max_score12 = score12
-                    max_score12_sh = score12_sh
-                    max_kpt_idx_image2 = kpt_idx_image2
-                    max_score20 = score20
-                    max_score20_sh = score20_sh
-            match['image2_kpt'] = kpts12_2[max_kpt_idx_image2]
-            match['score12'] = max_score12
-            match['score20'] = max_score20
-            match['score12_20'] = max_score12*max_score20
-            match['score12_20_sh'] = max_score12_sh*max_score20_sh
-            match['score12_sh'] = max_score12_sh
-            match['score20_sh'] = max_score20_sh
+            idx_kpt_image_d = match['image_d_kpt_idx']
+            idx_kpt_image_s = match['image_s_kpt_idx']
+            for kpt_idx_image_a,kpt_image_a in enumerate(kpts_a):
+                #score_da
+                score_da = scores_da_orig[0,idx_kpt_image_d,kpt_idx_image_a]
+                score_da_sh = scores_da_wo_sinkhorn_orig[0,idx_kpt_image_d,kpt_idx_image_a]
+                #score_as
+                score_as = scores_as_orig[0,kpt_idx_image_a,idx_kpt_image_s]
+                score_as_sh = scores_as_wo_sinkhorn_orig[0,kpt_idx_image_a,idx_kpt_image_s]
+                if max_score < score_da*score_as:
+                    max_score = score_da*score_as
+                    max_score_sh = score_da_sh*score_as_sh
+                    max_score_da = score_da
+                    max_score_da_sh = score_da_sh
+                    max_kpt_idx_image_a = kpt_idx_image_a
+                    max_score_as = score_as
+                    max_score_as_sh = score_as_sh
+            match['image_a_kpt'] = kpts_a[max_kpt_idx_image_a]
+            match['score_da'] = max_score_da
+            match['score_as'] = max_score_as
+            match['score_da_as'] = max_score_da*max_score_as
+            match['score_da_as_sh'] = max_score_da_sh*max_score_as_sh
+            match['score_da_sh'] = max_score_da_sh
+            match['score_as_sh'] = max_score_as_sh
             #save largest score
             top_matches.append(match)
-        triangles_per_match[match['image0_kpt_idx']] = top_matches
+        triangles_per_match[match['image_s_kpt_idx']] = top_matches
         if DEBUG_PRINT:
             cnt+=1
-            print(f'{cnt}: image0_kpt:{tri["image0_kpt"]} image1_kpt:{tri["image1_kpt"]} image2_kpt:{tri["image2_kpt"]}')
+            print(f'{cnt}: image_s_kpt:{tri["image_s_kpt"]} image_d_kpt:{tri["image_d_kpt"]} image_a_kpt:{tri["image_a_kpt"]}')
         if DEBUG_PRINT:
             cnt = 0
             print('-'*20)
@@ -694,7 +690,7 @@ def avg_dist(triangles,warped_kpts,valid_indices):
         if valid_indices[i] == -1:
             continue
         best_match = routs.l[-1]  #last one ist the best
-        kpt = best_match['image1_kpt']
+        kpt = best_match['image_s_kpt']
         dist +=  np.sqrt(np.dot(kpt-warped_kpts[i],kpt-warped_kpts[i]))
         cnt+=1
     return dist,cnt
@@ -710,12 +706,12 @@ def write_to_file(text_list,file_dest):
     with open(file_dest,'a',encoding='utf-8') as f:
         for d in text_list:
             f.write(f"{d['idx']}, ")
-            f.write(f"{d['score01']}, ")
+            f.write(f"{d['score_sd']}, ")
             f.write(f"{d['avg']}, ")
-            f.write(f"{d['score01_wo_skinhorn']},  ")
-            f.write(f"{d['image0_kpt'][0]},{d['image0_kpt'][1]}, ")
-            f.write(f"{d['image1_kpt'][0]},{d['image1_kpt'][1]}, ")
-            f.write(f"{d['warped_image1_kpt'][0]},{d['warped_image1_kpt'][1]}\n")
+            f.write(f"{d['score_sd_wo_skinhorn']},  ")
+            f.write(f"{d['image_s_kpt'][0]},{d['image_s_kpt'][1]}, ")
+            f.write(f"{d['image_d_kpt'][0]},{d['image_d_kpt'][1]}, ")
+            f.write(f"{d['warped_image_d_kpt'][0]},{d['warped_image_d_kpt'][1]}\n")
 def load_H(file_name):
     with open(file_name,'r',encoding='utf-8') as f:
         H = np.empty((0,3),dtype=float)
@@ -727,9 +723,9 @@ def load_H(file_name):
             H = np.append(H,row,axis=0)
     return H
 def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
-    image0_kpt = orig_match['kpts0']
-    orig_image1_kpt = orig_match['kpts1']
-    imp_image1_kpt = imp_match['kpts1']
+    image0_kpt = orig_match['kpts_s']
+    orig_image1_kpt = orig_match['kpts_d']
+    imp_image1_kpt = imp_match['kpts_d']
     H, W = image0.shape
     out = 255*np.ones((H, W*2), np.uint8)
     out[:H, :W] = image0
@@ -752,48 +748,48 @@ def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
     cv2.line(out, (x0, y0), (x1+W, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
     return out
-def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
+def draw_triangles(tris,warped_kpts,kpt_idx,image_s,image_d,image_a,margin=10):
     KEY_POINT = kpt_idx
     cell = tris[KEY_POINT]
     matches = cell.l
     H2, W2 = 0,0
-    H0, W0 = image0.shape
-    H1, W1 = image1.shape
-    H2, W2 = image2.shape
+    H0, W0 = image_s.shape
+    H1, W1 = image_d.shape
+    H2, W2 = image_a.shape
     H, W = max(H0,H1)+H2, W0 + W1 + margin
     out = 255*np.ones((H, W), np.uint8)
-    out[:H0, :W0] = image0
-    out[:H1, W0+margin:] = image1
+    out[:H0, :W0] = image_s
+    out[:H1, W0+margin:] = image_d
     H2_margin_w = int((W-W2)/2)
-    out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image2
+    out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image_a
     out = np.stack([out]*3, -1)
     #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
     ls = np.linspace(0.1,0.9,5)
     text_matches = list()
     for match_idx,match in enumerate(matches):
-        avg_score = match['score12_20']**(1.0/2.0)
-        score01_rounded = round(np.asscalar(match['score01'].numpy()),2)
+        avg_score = match['score_da_as']**(1.0/2.0)
+        score_sd_rounded = round(np.asscalar(match['score_sd'].numpy()),2)
         avg_score_rounded = round(np.asscalar(avg_score.numpy()),2)
-        score_wo_skinhon_rounded = round(np.asscalar(match['score01_wo_skinhorn'].numpy()),2)
-        idx_kpt = match['image0_kpt_idx']
+        score_wo_skinhon_rounded = round(np.asscalar(match['score_sd_wo_skinhorn'].numpy()),2)
+        idx_kpt = match['image_s_kpt_idx']
         colors = cm.jet(ls)
         color = colors[match_idx]
         c = (np.array(color)*255).astype(int)
         c = c.tolist()
-        (x0,y0) = match['image0_kpt']
-        (x1,y1) = match['image1_kpt']
+        (x0,y0) = match['image_s_kpt']
+        (x1,y1) = match['image_d_kpt']
         cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
         #print('-'*20)
-        #print(f'image0_kpt:({x0},{y0}) image1_kpt:({x1},{y1}) score01:{score01_rounded}')
+        #print(f'image_s_kpt:({x0},{y0}) image_d_kpt:({x1},{y1}) score_sd:{score_sd_rounded}')
         warped_x1 = int(warped_kpts[idx_kpt,0])
         warped_y1 = int(warped_kpts[idx_kpt,1])
-        #print(f'warp: image0_kpt:({x0},{y0}) idx:{KEY_POINT} image1_kpt:({warped_x1},{warped_y1})')
-        d = {'image0_kpt':(x0,y0),'image1_kpt':(x1,y1),
-        'idx':KEY_POINT,'warped_image1_kpt':(warped_x1,warped_y1),
-        'score01':score01_rounded,
+        #print(f'warp: image_s_kpt:({x0},{y0}) idx:{KEY_POINT} image_d_kpt:({warped_x1},{warped_y1})')
+        d = {'image_s_kpt':(x0,y0),'image_d_kpt':(x1,y1),
+        'idx':KEY_POINT,'warped_image_d_kpt':(warped_x1,warped_y1),
+        'score_sd':score_sd_rounded,
         'avg':avg_score_rounded,
-        'score01_wo_skinhorn':score_wo_skinhon_rounded}
+        'score_sd_wo_skinhorn':score_wo_skinhon_rounded}
         text_matches.append(d)
         red = (0, 30, 250)
         blue = (250,10,10)
@@ -801,12 +797,12 @@ def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
         cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
         cv2.circle(out, (x1 + margin + W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
         cv2.circle(out, (warped_x1 + margin + W0, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
-        (x0,y0) = match['image1_kpt']
-        (x1,y1) = match['image2_kpt']
+        (x0,y0) = match['image_d_kpt']
+        (x1,y1) = match['image_a_kpt']
         cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
-        (x0,y0) = match['image2_kpt']
-        (x1,y1) = match['image0_kpt']
+        (x0,y0) = match['image_a_kpt']
+        (x1,y1) = match['image_s_kpt']
         cv2.line(out, (x0+H2_margin_w, y0+max(H0,H1)), (x1, y1),
                 color=c, thickness=1, lineType=cv2.LINE_AA)
         # Scale factor for consistent visualization across scales.
@@ -818,7 +814,7 @@ def draw_triangles(tris,warped_kpts,kpt_idx,image0,image1,image2,margin=10):
         txt_color_bg = (0, 0, 0)
         C = 200
         avg_score_text = str(avg_score_rounded)
-        orig_score_text = str(score01_rounded)
+        orig_score_text = str(score_sd_rounded)
         wo_skinhorn_score_text = str(score_wo_skinhon_rounded)
         for text_idx, t in enumerate(orig_score_text):
             cv2.putText(out, t, (int(13*(sc+text_idx)), C+Ht*(match_idx+3)), cv2.FONT_HERSHEY_DUPLEX,

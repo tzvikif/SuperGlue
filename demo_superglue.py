@@ -110,8 +110,8 @@ def init_params(vs):
     timer.update('data')
     #01
     pred01 = matching({**data0, **data1})
-    kpts01_0 = data0['keypoints0'][0].cpu().numpy()
-    kpts01_1 = data1['keypoints1'][0].cpu().numpy()
+    kpts_s = data0['keypoints0'][0].cpu().numpy()
+    kpts_d = data1['keypoints1'][0].cpu().numpy()
     indices01_0 = pred01['indices0'][0].cpu().numpy()
     #confidence01_to_0 = pred01['matching_scores0'][0].cpu().numpy()
     full_scores01 = pred01['full_scores']
@@ -139,7 +139,7 @@ def init_params(vs):
 
     timer.update('forward')
     
-    matching01 = {'kpts_s':kpts01_0,'kpts_d':kpts01_1,
+    matching01 = {'kpts_s':kpts_s,'kpts_d':kpts_d,
     'full_scores':full_scores01,
     'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn}
     matching20 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
@@ -149,7 +149,7 @@ def init_params(vs):
     'full_scores':full_scores12,
     'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn}
 
-    matching10 = {'kpts_s':kpts01_1,'kpts_d':kpts01_0,
+    matching10 = {'kpts_s':kpts_d,'kpts_d':kpts_s,
     'full_scores':full_scores01.transpose(2,1),
     'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn.transpose(2,1)}
     matching02 = {  'kpts_s':kpts20_0,'kpts_d':kpts20_2,
@@ -158,12 +158,12 @@ def init_params(vs):
     matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
     'full_scores':full_scores12.transpose(2,1),
     'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
-    return {'matching01':matching01,'matching10':matching10,
-     'matching12':matching12,'matching21':matching21,
-     'matching20':matching20,'matching02':matching02,
-     'image0':image0,'image1':image1,'image2':image2,
+    return {'matching_sd':matching01,'matching_ds':matching10,
+     'matching_da':matching12,'matching_ad':matching21,
+     'matching_as':matching20,'matching_sa':matching02,
+     'image_s':image0,'image_d':image1,'image_a':image2,
      'orig_image_w':orig_image_w,'orig_image_h':orig_image_h,
-     'indices01_0':indices01_0}
+     'indices_s':indices01_0}
 def scale_H(H,orig_image_size,new_image_size):
     orig_image_w = orig_image_size[0]
     orig_image_h = orig_image_size[1]
@@ -182,28 +182,28 @@ def scale_H(H,orig_image_size,new_image_size):
     return H
 
 def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
-    image0 = params['image0']
-    image1 = params['image1']
-    image2 = params['image2']
-    matching01 = params['matching01']
-    matching10 = params['matching10']
-    matching12 = params['matching12']
-    matching21 = params['matching21']
-    matching20 = params['matching20']
-    matching02 = params['matching02']
-    kpts01_0 = params['matching01']['kpts_s']
-    indices01_0 = params['indices01_0']
+    image_s = params['image_s']
+    image_d = params['image_d']
+    image_a = params['image_a']
+    matching_sd = params['matching_sd']
+    matching_ds = params['matching_ds']
+    matching_da = params['matching_da']
+    matching_ad = params['matching_ad']
+    matching_as = params['matching_as']
+    matching_sa = params['matching_sa']
+    kpts_s = params['matching_sd']['kpts_s']
+    indices_s = params['indices_s']
 
-    #kpts_perm = np.random.permutation(len(kpts01_0))
-    kpts_perm = range(0,len(kpts01_0))
+    #kpts_perm = np.random.permutation(len(kpts_sd_0))
+    kpts_perm = range(0,len(kpts_s))
     
-    dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=indices01_0)
+    dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=indices_s)
     for idx,kpt_idx in enumerate(kpts_perm):
         text = list()
         #kpt_idx = 528
         if idx == 60:
             break
-        tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image0,image2,image1)
+        tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image_s,image_d,image_a)
         text.extend(text_matches)
         if opt.output_dir is not None:
             Path(output_path).mkdir(exist_ok=True)
@@ -219,36 +219,38 @@ def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
     return dist,cnt
 def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params_imp2_list,tris_imp1_list,tris_imp2_list,output_paths):
     for params_orig,params_imp1,params_imp2,tris_orig,tris_imp1,tris_imp2,output_path in zip(params_orig_list,params_imp1_list,params_imp2_list,tris_orig_list,tris_imp1_list,tris_imp2_list,output_paths):
-        image0 = params_orig['image0']
-        image1 = params_orig['image1']
-        matching01_orig = params_orig['matching01']['full_scores'][0,:,:]
-        matching01_imp1 = params_imp1['matching01']['full_scores'][0,:,:]
-        matching01_imp2 = params_imp2['matching01']['full_scores'][0,:,:]
-        kpts01_0 = params_orig['matching01']['kpts_s']
-        kpts01_1 = params_orig['matching01']['kpts_d']
-        indices01_0 = params_orig['indices01_0']
+        image_s = params_orig['image_s']
+        image_d = params_orig['image_d']
+        matching_sd_orig = params_orig['matching_sd']['full_scores'][0,:,:]
+        matching_sd_imp1 = params_imp1['matching_sd']['full_scores'][0,:,:]
+        matching_sd_imp2 = params_imp2['matching_sd']['full_scores'][0,:,:]
+        kpts_s = params_orig['matching_sd']['kpts_s']
+        kpts_d= params_orig['matching_sd']['kpts_d']
+        indices_sd_0 = params_orig['indices_s']
         warped_kpts = params_orig['warped_kpts']
-        for kpt_image0_idx in range(len(kpts01_0)):
-            max_idx_orig = np.argmax(matching01_orig[kpt_image0_idx,:]).numpy()
-            max_idx_imp1 = np.argmax(matching01_imp1[kpt_image0_idx,:]).numpy()
-            max_idx_imp2 = np.argmax(matching01_imp2[kpt_image0_idx,:]).numpy()
+        for kpt_image_s_idx in range(len(kpts_s)):
+            max_idx_orig = np.argmax(matching_sd_orig[kpt_image_s_idx,:]).numpy()
+            max_idx_imp1 = np.argmax(matching_sd_imp1[kpt_image_s_idx,:]).numpy()
+            max_idx_imp2 = np.argmax(matching_sd_imp2[kpt_image_s_idx,:]).numpy()
 
-            orig_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_orig]}
-            imp1_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_imp1]}
-            imp2_match = {'kpts0':kpts01_0[kpt_image0_idx],'kpts1':kpts01_1[max_idx_imp2]}
-            warped_kpt = warped_kpts[kpt_image0_idx]
+            orig_match = {'kpts_s':kpts_s[kpt_image_s_idx],'kpts_d':kpts_d[max_idx_orig]}
+            imp1_match = {'kpts_s':kpts_s[kpt_image_s_idx],'kpts_d':kpts_d[max_idx_imp1]}
+            imp2_match = {'kpts_s':kpts_s[kpt_image_s_idx],'kpts_d':kpts_d[max_idx_imp2]}
+            warped_kpt = warped_kpts[kpt_image_s_idx]
             if max_idx_orig != max_idx_imp1:
-                match_out = draw_match(image0,image1,orig_match,imp1_match,warped_kpt)
-                stem = f'matches1_{kpt_image0_idx}'
+                match_out = draw_match(image_s,image_d,orig_match,imp1_match,warped_kpt)
+                stem = f'matches1_{kpt_image_s_idx}'
                 out_file = str(Path(output_path, stem + '.png'))
                 out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
                 cv2.imwrite(out_file, match_out)
+                '''
             if max_idx_orig != max_idx_imp2:
-                out2 = draw_match(image0,image1,orig_match,imp2_match,warped_kpt)
-                stem = f'matches2_{kpt_image0_idx}'
+                out2 = draw_match(image_s,image_d,orig_match,imp2_match,warped_kpt)
+                stem = f'matches2_{kpt_image_s_idx}'
                 out_file = str(Path(output_path, stem + '.png'))
                 out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
                 cv2.imwrite(out_file, match_out)
+                '''
 def evalError(new_params):
     is_imp = False
     if not new_params == None:
@@ -278,15 +280,16 @@ def evalError(new_params):
         else:
             output_path = Path(os.path.join(opt.output_dir,sub_dir))
         output_paths.append(output_path)
-        kpts01_0 = params['matching01']['kpts_s']
-        warped_kpts = warp(kpts01_0,H)
-        tris = create_triangles(params['image0'],params['image2'],params['image1'],
-        params['matching02'],params['matching21'],params['matching10'])
+        kpts_s = params['matching_sd']['kpts_s']
+        warped_kpts = warp(kpts_s,H)
+        
+        tris = create_triangles(params['image_s'],params['image_d'],params['image_a'],
+        params['matching_sd'],params['matching_da'],params['matching_as'])
         tris_list.append(tris)
         params['warped_kpts'] = warped_kpts
         params_list.append(params)
         draw_images(params,H,warped_kpts,tris,output_path)
-        valid_indices = params['indices01_0']
+        valid_indices = params['indices_s']
         dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
         total_dist+= dist
         total_cnt+= cnt
@@ -386,8 +389,8 @@ if __name__ == '__main__':
     matching = Matching(config).eval().to(device)
     keys = ['keypoints', 'scores', 'descriptors']
     orig_params_list,tris_list,output_paths,base_error = evalError(None)
-    valid_indices_list = [x['indices01_0'] for x in orig_params_list]
-    full_scores_list = [x['matching02']['full_scores'] for x in orig_params_list]
+    valid_indices_list = [x['indices_s'] for x in orig_params_list]
+    full_scores_list = [x['matching_sd']['full_scores'] for x in orig_params_list]
     output = f'base error:{base_error}:' 
     print(output)
     new_scores_list,new_scores_sh_list = calcScores(tris_list,full_scores_list,valid_indices_list)
@@ -396,9 +399,9 @@ if __name__ == '__main__':
     params2 = copy.deepcopy(orig_params_list)
     sg = matching.superglue 
     for i,(new_scores,new_scores_sh) in enumerate(zip(new_scores_list,new_scores_sh_list)):
-        params1[i]['matching01']['full_scores'] = new_scores
+        params1[i]['matching_sd']['full_scores'] = new_scores
         a = sg.sh(new_scores_sh) 
-        params2[i]['matching01']['full_scores'] = a
+        params2[i]['matching_sd']['full_scores'] = a
     _,tris1,_,error1 = evalError(params1)
     _,tris2,_,error2 = evalError(params2)
     print(f'error1:{error1}')
