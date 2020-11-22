@@ -578,8 +578,8 @@ def calcScores(tris,scores,valid_indices):
                 avg_score_sh = triangle['score_da_as_sh']
                 image_d_kpt_idx = triangle['image_d_kpt_idx']
                 orig_score = triangle['score_sd']
-                if i == 0 and image_d_kpt_idx == 52:
-                    avg_score = 0.97
+                if i == 20 and image_d_kpt_idx==57:
+                    avg_score = 0.99
                 new_scores[0,i,image_d_kpt_idx] = avg_score
                 new_scores_sh[0,i,image_d_kpt_idx] = avg_score_sh
         all_new_scores.append(new_scores)
@@ -613,7 +613,7 @@ def create_triangles(image_s,   #source image
     scores_as_wo_sinkhorn_orig = matching_as['full_scores_wo_sinkhorn']
     kpts_s = matching_sd['kpts_s']
     kpts_d = matching_sd['kpts_d']
-    kpts_a = matching_as['kpts_s']
+    kpts_a = matching_as['kpts_a']
     
     COLOR_FACTOR = 2**(-4)
     
@@ -669,7 +669,7 @@ def create_triangles(image_s,   #source image
             match['image_a_kpt'] = kpts_a[max_kpt_idx_image_a]
             match['score_da'] = max_score_da
             match['score_as'] = max_score_as
-            match['score_da_as'] = max_score_da*max_score_as
+            match['score_da_as'] = np.sqrt(max_score_da*max_score_as)
             match['score_da_as_sh'] = max_score_da_sh*max_score_as_sh
             match['score_da_sh'] = max_score_da_sh
             match['score_as_sh'] = max_score_as_sh
@@ -690,8 +690,8 @@ def avg_dist(triangles,warped_kpts,valid_indices):
         if valid_indices[i] == -1:
             continue
         best_match = routs.l[-1]  #last one ist the best
-        kpt = best_match['image_s_kpt']
-        dist +=  np.sqrt(np.dot(kpt-warped_kpts[i],kpt-warped_kpts[i]))
+        kpt_d = best_match['image_d_kpt']
+        dist +=  np.sqrt(np.dot(kpt_d-warped_kpts[i],kpt_d-warped_kpts[i]))
         cnt+=1
     return dist,cnt
 def write_warped_kpts(kpts,warped_kpts,file_dest):
@@ -735,16 +735,17 @@ def draw_match(image0,image1,orig_match,imp_match,warped_kpt):
     red = (0, 30, 250)
     blue = (250,10,10)
     green = (10,250,10)
+    dot_size = 2
     (x0,y0) = image0_kpt
     (warped_x1,warped_y1) = int(warped_kpt[0]),int(warped_kpt[1])
-    cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
+    cv2.circle(out, (x0, y0), dot_size, red, -1, lineType=cv2.LINE_AA)
     (x1,y1) = int(orig_image1_kpt[0]),int(orig_image1_kpt[1])
-    cv2.circle(out, (x1+W, y1), 3, blue, -1, lineType=cv2.LINE_AA)
+    cv2.circle(out, (x1+W, y1), dot_size, blue, -1, lineType=cv2.LINE_AA)
     cv2.line(out, (x0, y0), (x1+W, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
-    cv2.circle(out, (warped_x1+W, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
+    cv2.circle(out, (warped_x1+W, warped_y1), dot_size, green, -1, lineType=cv2.LINE_AA)
     (x1,y1) = int(imp_image1_kpt[0]),int(imp_image1_kpt[1])
-    cv2.circle(out, (x1+W, y1), 3, red, -1, lineType=cv2.LINE_AA)
+    cv2.circle(out, (x1+W, y1), dot_size, red, -1, lineType=cv2.LINE_AA)
     cv2.line(out, (x0, y0), (x1+W, y1),
                 color=green, thickness=1, lineType=cv2.LINE_AA)
     return out
@@ -763,11 +764,10 @@ def draw_triangles(tris,warped_kpts,kpt_idx,image_s,image_d,image_a,margin=10):
     H2_margin_w = int((W-W2)/2)
     out[max(H1,H2):,H2_margin_w:H2_margin_w+W2] = image_a
     out = np.stack([out]*3, -1)
-    #total_scores = [item['score12_20'].numpy()**(1.0/2.0) for item in matches]
     ls = np.linspace(0.1,0.9,5)
     text_matches = list()
     for match_idx,match in enumerate(matches):
-        avg_score = match['score_da_as']**(1.0/2.0)
+        avg_score = match['score_da_as']
         score_sd_rounded = round(np.asscalar(match['score_sd'].numpy()),2)
         avg_score_rounded = round(np.asscalar(avg_score.numpy()),2)
         score_wo_skinhon_rounded = round(np.asscalar(match['score_sd_wo_skinhorn'].numpy()),2)
@@ -794,9 +794,10 @@ def draw_triangles(tris,warped_kpts,kpt_idx,image_s,image_d,image_a,margin=10):
         red = (0, 30, 250)
         blue = (250,10,10)
         green = (10,250,10)
-        cv2.circle(out, (x0, y0), 3, red, -1, lineType=cv2.LINE_AA)
-        cv2.circle(out, (x1 + margin + W0, y1), 3, blue, -1, lineType=cv2.LINE_AA)
-        cv2.circle(out, (warped_x1 + margin + W0, warped_y1), 3, green, -1, lineType=cv2.LINE_AA)
+        dot_size = 2
+        cv2.circle(out, (x0, y0), dot_size, red, -1, lineType=cv2.LINE_AA)
+        cv2.circle(out, (x1 + margin + W0, y1), dot_size, blue, -1, lineType=cv2.LINE_AA)
+        cv2.circle(out, (warped_x1 + margin + W0, warped_y1), dot_size, green, -1, lineType=cv2.LINE_AA)
         (x0,y0) = match['image_d_kpt']
         (x1,y1) = match['image_a_kpt']
         cv2.line(out, (x0 + margin + W0, y0), (x1+H2_margin_w, y1+max(H0,H1)),

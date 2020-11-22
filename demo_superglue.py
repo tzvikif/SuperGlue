@@ -79,7 +79,7 @@ def init_params(vs):
     data = matching.superpoint({'image': frame_tensor})
     data0 = {k+'0': data[k] for k in keys}
     data0['image0'] = frame_tensor
-    image0 = frame
+    image_s = frame
     image_id = 0
     #superpoint image1
     frame, ret,(_,_) = vs.next_frame()
@@ -89,7 +89,7 @@ def init_params(vs):
     data = matching.superpoint({'image': frame_tensor})
     data1 = {k+'1': data[k] for k in keys}
     data1['image1'] = frame_tensor
-    image1 = frame
+    image_a = frame
     last_image_id = 1
     #superpoint image2
     frame, ret,(_,_) = vs.next_frame()
@@ -97,7 +97,7 @@ def init_params(vs):
     data = matching.superpoint({'image': frame_tensor})
     data2 = {k+'0': data[k] for k in keys}
     data2['image0'] = frame_tensor
-    image2 = frame
+    image_d = frame
     last_image_id = 2
 
     if opt.output_dir is not None:
@@ -108,62 +108,58 @@ def init_params(vs):
         #Path(opt.text_output_dir).mkdir(exist_ok=True)
     timer = AverageTimer()
     timer.update('data')
-    #01
-    pred01 = matching({**data0, **data1})
+    #01 - source -> aux
+    pred_sa = matching({**data0, **data1})
     kpts_s = data0['keypoints0'][0].cpu().numpy()
-    kpts_d = data1['keypoints1'][0].cpu().numpy()
-    indices01_0 = pred01['indices0'][0].cpu().numpy()
+    kpts_a = data1['keypoints1'][0].cpu().numpy()
+    indices_s = pred_sa['indices0'][0].cpu().numpy()
     #confidence01_to_0 = pred01['matching_scores0'][0].cpu().numpy()
-    full_scores01 = pred01['full_scores']
-    full_scores01_wo_sinkhorn = pred01['full_scores_wo_sinkhon']
-    #12
-    pred21 = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
-    kpts12_1 = data1['keypoints1'][0].cpu().numpy()
-    kpts12_2 = data2['keypoints0'][0].cpu().numpy()
+    full_scores_sa = pred_sa['full_scores']
+    full_scores_sa_wo_sinkhorn = pred_sa['full_scores_wo_sinkhon']
+
+    full_scores_as = torch.transpose(full_scores_sa,2,1)
+    full_scores_as_wo_sinkhorn = torch.transpose(full_scores_sa_wo_sinkhorn,2,1)
+
+    #12 - aux -> destination
+    pred_da = matching({**data1, **data2}) #data1 pref 1, data2 pref 0
+    #kpts12_1 = data1['keypoints1'][0].cpu().numpy()
+    kpts_d = data2['keypoints0'][0].cpu().numpy()
     #indices01_1 = pred21['indices1'][0].cpu().numpy()
     #confidence12_to_2 = pred21['matching_scores0'][0].cpu().numpy()
-    full_scores12 = torch.transpose(pred21['full_scores'],2,1)
-    full_scores12_wo_sinkhorn = torch.transpose(pred21['full_scores_wo_sinkhon'],2,1)
-    #20
+    full_scores_da = pred_da['full_scores']
+    full_scores_da_wo_sinkhorn = pred_da['full_scores_wo_sinkhon']
+    #20 - destination -> source
     data2 = None
     data = matching.superpoint({'image': frame_tensor})
     data2 = {k+'1': data[k] for k in keys}
     data2['image1'] = frame_tensor
-    pred02 = matching({**data0, **data2})
-    kpts20_0 = data0['keypoints0'][0].cpu().numpy()
-    kpts20_2 = data2['keypoints1'][0].cpu().numpy()
+    pred_sd = matching({**data0, **data2})
+    #kpts20_0 = data0['keypoints0'][0].cpu().numpy()
+    #kpts20_2 = data2['keypoints1'][0].cpu().numpy()
     #matches20_to_0 = pred02['indices0'][0].cpu().numpy()
-    confidence20_to_0 = pred02['matching_scores0'][0].cpu().numpy()
-    full_scores20 = torch.transpose(pred02['full_scores'],2,1) 
-    full_scores20_wo_sinkhorn = torch.transpose(pred02['full_scores_wo_sinkhon'],2,1) 
+    #confidence20_to_0 = pred02['matching_scores0'][0].cpu().numpy()
+    full_scores_sd = pred_sd['full_scores']
+    full_scores_sd_wo_sinkhorn = pred_sd['full_scores_wo_sinkhon']
 
     timer.update('forward')
-    
-    matching01 = {'kpts_s':kpts_s,'kpts_d':kpts_d,
-    'full_scores':full_scores01,
-    'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn}
-    matching20 = {'kpts_s':kpts20_2,'kpts_d':kpts20_0,
-    'full_scores':full_scores20,
-    'full_scores_wo_sinkhorn':full_scores20_wo_sinkhorn}
-    matching12 = {'kpts_s':kpts12_1,'kpts_d':kpts12_2,
-    'full_scores':full_scores12,
-    'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn}
 
-    matching10 = {'kpts_s':kpts_d,'kpts_d':kpts_s,
-    'full_scores':full_scores01.transpose(2,1),
-    'full_scores_wo_sinkhorn':full_scores01_wo_sinkhorn.transpose(2,1)}
-    matching02 = {  'kpts_s':kpts20_0,'kpts_d':kpts20_2,
-    'full_scores':full_scores20.transpose(2,1),
-    'full_scores_wo_sinkhorn':full_scores20_wo_sinkhorn.transpose(2,1)}
-    matching21 = {'kpts_s':kpts12_2,'kpts_d':kpts12_1,
-    'full_scores':full_scores12.transpose(2,1),
-    'full_scores_wo_sinkhorn':full_scores12_wo_sinkhorn.transpose(2,1)}
-    return {'matching_sd':matching01,'matching_ds':matching10,
-     'matching_da':matching12,'matching_ad':matching21,
-     'matching_as':matching20,'matching_sa':matching02,
-     'image_s':image0,'image_d':image1,'image_a':image2,
+    matching_as = {'kpts_s':kpts_s,'kpts_a':kpts_a,
+    'full_scores':full_scores_as,
+    'full_scores_wo_sinkhorn':full_scores_as_wo_sinkhorn}
+    matching_sd = { 'kpts_s':kpts_s,'kpts_d':kpts_d,
+    'full_scores':full_scores_sd,
+    'full_scores_wo_sinkhorn':full_scores_sd_wo_sinkhorn}
+    matching_da = {'kpts_d':kpts_d,'kpts_a':kpts_a,
+    'full_scores':full_scores_da,
+    'full_scores_wo_sinkhorn':full_scores_da_wo_sinkhorn}
+    return {'matching_sd':matching_sd,
+     'matching_da':matching_da,
+     'matching_as':matching_as,
+     'image_s':image_s,
+     'image_d':image_d,'image_a':image_a,
      'orig_image_w':orig_image_w,'orig_image_h':orig_image_h,
-     'indices_s':indices01_0}
+     'indices_s':indices_s}
+
 def scale_H(H,orig_image_size,new_image_size):
     orig_image_w = orig_image_size[0]
     orig_image_h = orig_image_size[1]
@@ -181,42 +177,33 @@ def scale_H(H,orig_image_size,new_image_size):
     H = np.matmul(r_scale,H)
     return H
 
-def draw_images(params,H,warped_kpts,tris,output_path,number_of_images=10):
+def draw_images_with_triangles(params,H,warped_kpts,tris,output_path,number_of_images=10):
     image_s = params['image_s']
     image_d = params['image_d']
     image_a = params['image_a']
     matching_sd = params['matching_sd']
-    matching_ds = params['matching_ds']
     matching_da = params['matching_da']
-    matching_ad = params['matching_ad']
     matching_as = params['matching_as']
-    matching_sa = params['matching_sa']
     kpts_s = params['matching_sd']['kpts_s']
     indices_s = params['indices_s']
 
     #kpts_perm = np.random.permutation(len(kpts_sd_0))
-    kpts_perm = range(0,len(kpts_s))
     
-    dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=indices_s)
-    for idx,kpt_idx in enumerate(kpts_perm):
+    for idx,kpt_s_idx in enumerate( range(0,len(kpts_s)) ):
         text = list()
         #kpt_idx = 528
         if idx == 60:
             break
-        tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_idx,image_s,image_d,image_a)
+        tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_s_idx,image_s,image_d,image_a)
         text.extend(text_matches)
         if opt.output_dir is not None:
             Path(output_path).mkdir(exist_ok=True)
             text_out_file_path = str(Path(output_path, 'kpts.txt'))
             write_to_file(text,text_out_file_path)
-            #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
-            stem = f'matches_{kpt_idx}'
+            stem = f'matches_{kpt_s_idx}'
             out_file = str(Path(output_path, stem + '.png'))
-            #out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
-            #print('\nWriting image to {}'.format(out_file))
             cv2.imwrite(out_file, tri_out)
         cv2.destroyAllWindows()
-    return dist,cnt
 def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params_imp2_list,tris_imp1_list,tris_imp2_list,output_paths):
     for params_orig,params_imp1,params_imp2,tris_orig,tris_imp1,tris_imp2,output_path in zip(params_orig_list,params_imp1_list,params_imp2_list,tris_orig_list,tris_imp1_list,tris_imp2_list,output_paths):
         image_s = params_orig['image_s']
@@ -240,8 +227,7 @@ def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params
             if max_idx_orig != max_idx_imp1:
                 match_out = draw_match(image_s,image_d,orig_match,imp1_match,warped_kpt)
                 stem = f'matches1_{kpt_image_s_idx}'
-                out_file = str(Path(output_path, stem + '.png'))
-                out_file_test = str(Path(opt.output_dir, stem + '_test.png'))
+                out_file = str(Path(output_path, stem + '_comparison.png'))
                 cv2.imwrite(out_file, match_out)
                 '''
             if max_idx_orig != max_idx_imp2:
@@ -283,12 +269,12 @@ def evalError(new_params):
         kpts_s = params['matching_sd']['kpts_s']
         warped_kpts = warp(kpts_s,H)
         
-        tris = create_triangles(params['image_s'],params['image_d'],params['image_a'],
-        params['matching_sd'],params['matching_da'],params['matching_as'])
+        tris = create_triangles(image_s=params['image_s'],image_d=params['image_d'],image_a=params['image_a'],
+        matching_sd=params['matching_sd'],matching_da=params['matching_da'],matching_as=params['matching_as'])
         tris_list.append(tris)
         params['warped_kpts'] = warped_kpts
         params_list.append(params)
-        draw_images(params,H,warped_kpts,tris,output_path)
+        draw_images_with_triangles(params,H,warped_kpts,tris,output_path)
         valid_indices = params['indices_s']
         dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
         total_dist+= dist
