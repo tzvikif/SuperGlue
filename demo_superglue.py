@@ -177,7 +177,7 @@ def scale_H(H,orig_image_size,new_image_size):
     H = np.matmul(r_scale,H)
     return H
 
-def draw_images_with_triangles(params,H,warped_kpts,tris,output_path,number_of_images=10):
+def draw_images_with_triangles(params,H,warped_kpts,tris,output_path,number_of_images=10,with_images=False):
     image_s = params['image_s']
     image_d = params['image_d']
     image_a = params['image_a']
@@ -202,10 +202,12 @@ def draw_images_with_triangles(params,H,warped_kpts,tris,output_path,number_of_i
             write_to_file(text,text_out_file_path)
             stem = f'matches_{kpt_s_idx}'
             out_file = str(Path(output_path, stem + '.png'))
-            cv2.imwrite(out_file, tri_out)
-        cv2.destroyAllWindows()
+            if with_images==True:
+                cv2.imwrite(out_file, tri_out)
+                cv2.destroyAllWindows()
 def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params_imp2_list,tris_imp1_list,tris_imp2_list,output_paths):
     for params_orig,params_imp1,params_imp2,tris_orig,tris_imp1,tris_imp2,output_path in zip(params_orig_list,params_imp1_list,params_imp2_list,tris_orig_list,tris_imp1_list,tris_imp2_list,output_paths):
+        Path(output_path).mkdir(exist_ok=True)
         image_s = params_orig['image_s']
         image_d = params_orig['image_d']
         matching_sd_orig = params_orig['matching_sd']['full_scores'][0,:,:]
@@ -224,7 +226,13 @@ def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params
             imp1_match = {'kpts_s':kpts_s[kpt_image_s_idx],'kpts_d':kpts_d[max_idx_imp1]}
             imp2_match = {'kpts_s':kpts_s[kpt_image_s_idx],'kpts_d':kpts_d[max_idx_imp2]}
             warped_kpt = warped_kpts[kpt_image_s_idx]
-            if max_idx_orig != max_idx_imp1:
+            kpts_d_orig = kpts_d[max_idx_orig]
+            kpts_d_imp1 = kpts_d[max_idx_imp1]
+            kpts_d_imp2 = kpts_d[max_idx_imp2]
+            dist_orig_to_ground_truth = np.sqrt(np.dot(kpts_d_orig-warped_kpt,kpts_d_orig-warped_kpt))
+            dist_imp1_to_ground_truth = np.sqrt(np.dot(kpts_d_imp1-warped_kpt,kpts_d_imp1-warped_kpt))
+            dist_imp2_to_ground_truth = np.sqrt(np.dot(kpts_d_imp2-warped_kpt,kpts_d_imp2-warped_kpt))
+            if dist_orig_to_ground_truth > dist_imp1_to_ground_truth:
                 match_out = draw_match(image_s,image_d,orig_match,imp1_match,warped_kpt)
                 stem = f'matches1_{kpt_image_s_idx}'
                 out_file = str(Path(output_path, stem + '_comparison.png'))
@@ -261,8 +269,9 @@ def evalError(new_params):
             params = new_params[i]
         H = load_H(os.path.join(sub_dir,file_name))
         H = scale_H(H,(params['orig_image_w'],params['orig_image_h']),opt.resize)
+        output_path = Path(os.path.join(opt.output_dir,sub_dir))
         if is_imp == True:
-            output_path = Path(os.path.join(opt.output_dir,sub_dir+'_imp'))    
+            output_path = Path(os.path.join(opt.output_dir,sub_dir+'_imp'))
         else:
             output_path = Path(os.path.join(opt.output_dir,sub_dir))
         output_paths.append(output_path)

@@ -570,7 +570,7 @@ def calcScores(tris,scores,valid_indices):
     for t,s,v in zip(tris,scores,valid_indices):
         new_scores = torch.full_like(s,0.0)
         new_scores_sh = torch.full_like(s,0.0)
-        for i,match in enumerate(t):
+        for i,match in enumerate(t):    
             if v[i] == -1:
                 continue
             for triangle in match.l:
@@ -578,8 +578,6 @@ def calcScores(tris,scores,valid_indices):
                 avg_score_sh = triangle['score_da_as_sh']
                 image_d_kpt_idx = triangle['image_d_kpt_idx']
                 orig_score = triangle['score_sd']
-                if i == 20 and image_d_kpt_idx==57:
-                    avg_score = 0.99
                 new_scores[0,i,image_d_kpt_idx] = avg_score
                 new_scores_sh[0,i,image_d_kpt_idx] = avg_score_sh
         all_new_scores.append(new_scores)
@@ -669,7 +667,7 @@ def create_triangles(image_s,   #source image
             match['image_a_kpt'] = kpts_a[max_kpt_idx_image_a]
             match['score_da'] = max_score_da
             match['score_as'] = max_score_as
-            match['score_da_as'] = np.sqrt(max_score_da*max_score_as)
+            match['score_da_as'] = np.sqrt(np.sqrt(max_score_da*max_score_as)*score)
             match['score_da_as_sh'] = max_score_da_sh*max_score_as_sh
             match['score_da_sh'] = max_score_da_sh
             match['score_as_sh'] = max_score_as_sh
