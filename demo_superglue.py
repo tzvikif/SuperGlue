@@ -192,18 +192,20 @@ def draw_images_with_triangles(params,H,warped_kpts,tris,output_path,number_of_i
     for idx,kpt_s_idx in enumerate( range(0,len(kpts_s)) ):
         text = list()
         #kpt_idx = 528
-        if idx == 60:
-            break
+        #if idx == 60:
+        #    break
         tri_out,text_matches = draw_triangles(tris,warped_kpts,kpt_s_idx,image_s,image_d,image_a)
         text.extend(text_matches)
         if opt.output_dir is not None:
             Path(output_path).mkdir(exist_ok=True)
             text_out_file_path = str(Path(output_path, 'kpts.txt'))
             write_to_file(text,text_out_file_path)
-            stem = f'matches_{kpt_s_idx}'
-            out_file = str(Path(output_path, stem + '.png'))
             if with_images==True:
-                cv2.imwrite(out_file, tri_out)
+                images_path = os.path.join(output_path,'triangles')
+                Path(images_path).mkdir(exist_ok=True)
+                stem = f'matches_{kpt_s_idx}'
+                out_file = stem + '.png'
+                cv2.imwrite(os.path.join(output_path,out_file), tri_out)
                 cv2.destroyAllWindows()
 def draw_improved_images(params_orig_list,tris_orig_list,params_imp1_list,params_imp2_list,tris_imp1_list,tris_imp2_list,output_paths):
     for params_orig,params_imp1,params_imp2,tris_orig,tris_imp1,tris_imp2,output_path in zip(params_orig_list,params_imp1_list,params_imp2_list,tris_orig_list,tris_imp1_list,tris_imp2_list,output_paths):
@@ -283,7 +285,7 @@ def evalError(new_params):
         tris_list.append(tris)
         params['warped_kpts'] = warped_kpts
         params_list.append(params)
-        draw_images_with_triangles(params,H,warped_kpts,tris,output_path)
+        draw_images_with_triangles(params,H,warped_kpts,tris,output_path,with_images=True)
         valid_indices = params['indices_s']
         dist,cnt = avg_dist(triangles=tris,warped_kpts=warped_kpts,valid_indices=valid_indices)
         total_dist+= dist

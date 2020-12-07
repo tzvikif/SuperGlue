@@ -31,4 +31,6 @@ the 3rd column displays the base score before skinhorn algorthm was excecuted.
 <img src="tz_assets/matches1_49_comparison.png" width="400">
 <img src="tz_assets/matches1_105_comparison.png" width="400">
 
+* The images were taken from (https://github.com/hpatches/hpatches-dataset)
+
 
